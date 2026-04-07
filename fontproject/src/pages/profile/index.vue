@@ -1,0 +1,306 @@
+<template>
+  <view class="page">
+    <view class="hero-bg">
+      <view class="blur-dot dot-left" />
+      <view class="blur-dot dot-right" />
+    </view>
+
+    <view class="content">
+      <view class="user-card" @click="goUserInfo">
+        <u-avatar :src="displayUser.avatar" size="62" />
+        <view class="user-main">
+          <text class="username">{{ displayUser.username }}</text>
+          <text class="sub-text">点击进入个人信息页</text>
+        </view>
+        <view class="profile-tag">个人主页</view>
+        <u-icon name="arrow-right" size="16" color="#94a3b8" />
+      </view>
+
+      <view class="quick-panel">
+        <view class="quick-item">
+          <text class="quick-value">12</text>
+          <text class="quick-label">订单</text>
+        </view>
+        <view class="quick-divider" />
+        <view class="quick-item">
+          <text class="quick-value">5</text>
+          <text class="quick-label">收藏</text>
+        </view>
+        <view class="quick-divider" />
+        <view class="quick-item">
+          <text class="quick-value">3</text>
+          <text class="quick-label">发布</text>
+        </view>
+      </view>
+
+      <view class="section-title">我的服务</view>
+      <u-cell-group :border="false" customStyle="border-radius: 24rpx; overflow: hidden;">
+        <u-cell
+          v-for="item in menuList"
+          :key="item.key"
+          :title="item.title"
+          :label="item.desc"
+          isLink
+          size="large"
+          :border="item.key !== menuList[menuList.length - 1].key"
+          @click="handleMenuClick(item)"
+        >
+          <template #icon>
+            <view class="menu-icon">{{ item.short }}</view>
+          </template>
+        </u-cell>
+      </u-cell-group>
+
+      <u-button
+        type="error"
+        shape="circle"
+        text="退出登录"
+        customStyle="height: 86rpx; margin-top: 36rpx; font-size: 30rpx; font-weight: 600;"
+        @click="handleLogout"
+      />
+    </view>
+    <CustomTabBar />
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed } from "vue";
+import CustomTabBar from "@/components/CustomTabBar.vue";
+
+/**
+ * 本地缓存中的用户数据结构。
+ */
+interface LoginUser {
+  id: number;
+  username: string;
+  nickname?: string;
+  avatar?: string;
+}
+
+/**
+ * 我的页面功能项列表，按微信“我的”常见顺序展示。
+ */
+const menuList = [
+  { key: "address", title: "地址管理", short: "址", desc: "" },
+  { key: "security", title: "账号与安全", short: "安", desc: "" },
+  { key: "version", title: "版本信息", short: "版", desc: "" },
+];
+
+/**
+ * 根据本地缓存构建展示用的头像和用户名，保证未登录时也有默认值。
+ */
+const displayUser = computed(() => {
+  const cacheUser = uni.getStorageSync("loginUser") as LoginUser | undefined;
+  const username = cacheUser?.nickname || cacheUser?.username || "未登录用户";
+  const avatar = cacheUser?.avatar || "";
+  return { username, avatar };
+});
+
+/**
+ * 点击头像或用户名，进入用户信息页面。
+ */
+const goUserInfo = () => {
+  uni.navigateTo({
+    url: "/pages/profile/user-info",
+  });
+};
+
+/**
+ * 点击功能项时进行路由占位提示，便于后续逐项接入真实页面。
+ */
+const handleMenuClick = (item: { key: string; title: string; short: string; desc: string }) => {
+  if (item.key === "version") {
+    uni.showModal({
+      title: "版本信息",
+      content: "当前版本：v1.0.0",
+      showCancel: false,
+    });
+    return;
+  }
+  uni.showToast({
+    title: `${item.title}功能开发中`,
+    icon: "none",
+  });
+};
+
+/**
+ * 退出登录：清理 token 与用户缓存，并跳转到登录页重新登录。
+ */
+const handleLogout = () => {
+  uni.showModal({
+    title: "退出登录",
+    content: "确认退出当前账号吗？",
+    success: (res) => {
+      if (!res.confirm) return;
+      uni.removeStorageSync("token");
+      uni.removeStorageSync("loginUser");
+      uni.reLaunch({
+        url: "/pages/login/index",
+      });
+    },
+  });
+};
+</script>
+
+<style scoped>
+.page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #dbeafe 0%, #f0f6ff 500rpx, #ffffff 900rpx);
+  position: relative;
+}
+
+.hero-bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 240rpx;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.blur-dot {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(2rpx);
+}
+
+.dot-left {
+  width: 280rpx;
+  height: 280rpx;
+  left: -80rpx;
+  top: -120rpx;
+  background: radial-gradient(circle, rgba(66, 120, 255, 0.28) 0%, rgba(66, 120, 255, 0) 72%);
+}
+
+.dot-right {
+  width: 260rpx;
+  height: 260rpx;
+  right: -70rpx;
+  top: -90rpx;
+  background: radial-gradient(circle, rgba(96, 224, 196, 0.24) 0%, rgba(96, 224, 196, 0) 72%);
+}
+
+.content {
+  padding: 26rpx 16rpx 220rpx;
+  position: relative;
+  z-index: 1;
+}
+
+.user-card {
+  margin-bottom: 22rpx;
+  padding: 30rpx 24rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(128deg, #ffffff 0%, #f7fbff 100%);
+  display: flex;
+  align-items: center;
+  box-shadow: 0 12rpx 34rpx rgba(24, 42, 84, 0.08);
+  border: 1rpx solid rgba(255, 255, 255, 0.88);
+}
+
+.user-main {
+  flex: 1;
+  min-width: 0;
+  margin-left: 20rpx;
+}
+
+.username {
+  display: block;
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sub-text {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #64748b;
+}
+
+.profile-tag {
+  margin-right: 12rpx;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  color: #2356d7;
+  background: rgba(45, 97, 233, 0.1);
+}
+
+.quick-panel {
+  margin-bottom: 24rpx;
+  border-radius: 24rpx;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22rpx 20rpx;
+  box-shadow: 0 10rpx 26rpx rgba(15, 23, 42, 0.05);
+}
+
+.quick-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.quick-value {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #1e3a8a;
+  line-height: 1.1;
+}
+
+.quick-label {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #64748b;
+}
+
+.quick-divider {
+  width: 1rpx;
+  height: 48rpx;
+  background: #e2e8f0;
+}
+
+.section-title {
+  margin: 6rpx 0 16rpx;
+  padding-left: 6rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #334155;
+}
+
+.menu-icon {
+  width: 46rpx;
+  height: 46rpx;
+  border-radius: 12rpx;
+  margin-right: 14rpx;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:deep(.u-cell-group) {
+  box-shadow: 0 10rpx 26rpx rgba(15, 23, 42, 0.05);
+}
+
+:deep(.u-cell) {
+  background: #ffffff !important;
+}
+
+:deep(.u-cell__title-text) {
+  font-size: 30rpx !important;
+  font-weight: 600;
+  color: #0f172a !important;
+}
+
+:deep(.u-cell__label) {
+  color: #94a3b8 !important;
+  margin-top: 6rpx !important;
+}
+</style>
