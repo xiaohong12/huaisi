@@ -12,6 +12,8 @@ export interface MallProductListItemDTO {
   title: string;
   price: number;
   soldCount: number;
+  /** 可售库存件数（与库字段 stock 一致） */
+  stock: number;
   coverUrl: string;
   coverAspect: number;
   /** 是否支持七天无理由退换（由库字段 seven_day_no_reason 映射） */

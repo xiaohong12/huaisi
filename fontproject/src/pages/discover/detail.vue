@@ -34,14 +34,15 @@
       <!-- 商品名称紧跟主图下方，与价格同卡、纵向留白 -->
       <view class="block title-block">
         <text class="title">{{ title }}</text>
-        <!-- 价格与已售同一行：左价右已售 -->
+        <!-- 价格与库存同一行：左价右库存；已收展示在价格右侧 -->
         <view class="price-sold-row">
           <view class="price-row">
             <text class="yen">¥</text>
             <text class="p-int">{{ priceParts.priceInt }}</text>
             <text class="p-dec">.{{ priceParts.priceDec }}</text>
+            <text class="receive-line">已售 {{ formatSold(soldCount) }}</text>
           </view>
-          <text class="sold-line">已售 {{ formatSold(soldCount) }}</text>
+          <text class="sold-line">库存 {{ stockCount }}</text>
         </view>
       </view>
 
@@ -116,6 +117,7 @@ import { getMallProductDetailApi } from "@/api/mall";
 const title = ref("");
 const price = ref(0);
 const soldCount = ref(0);
+const stockCount = ref(0);
 const description = ref("");
 const detailImages = ref<string[]>([]);
 /** 是否支持七天无理由（与列表接口字段一致） */
@@ -180,6 +182,7 @@ const loadDetail = async (id: number) => {
     title.value = d.title;
     price.value = d.price;
     soldCount.value = d.soldCount;
+    stockCount.value = Number(d.stock ?? 0) || 0;
     description.value = d.description;
     detailImages.value = d.detailImages?.length ? d.detailImages : d.coverUrl ? [d.coverUrl] : [];
     sevenDayNoReason.value = d.sevenDayNoReason === true;
@@ -298,6 +301,7 @@ onLoad((query?: Record<string, string | undefined>) => {
   flex-direction: row;
   align-items: baseline;
   flex-shrink: 0;
+  gap: 8rpx;
 }
 
 .yen {
@@ -317,6 +321,13 @@ onLoad((query?: Record<string, string | undefined>) => {
   font-size: 28rpx;
   font-weight: 700;
   color: #ff4400;
+}
+
+.receive-line {
+  font-size: 24rpx;
+  color: #999999;
+  margin-left: 8rpx;
+  flex-shrink: 0;
 }
 
 .sold-line {
@@ -381,6 +392,7 @@ onLoad((query?: Record<string, string | undefined>) => {
 
 .svc-fast {
   color: #4b5563;
+  font-size: 22rpx;
 }
 
 .section-head {

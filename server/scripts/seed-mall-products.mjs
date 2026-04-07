@@ -56,6 +56,7 @@ async function main() {
     const title = pickTitle(i).replace(/'/g, "''");
     const price = (19.9 + (i % 17) * 7.5).toFixed(2);
     const sold = 100 + (i * 137) % 20000;
+    const stock = 30 + (i * 89) % 800;
     const aspect = (0.85 + ((i * 13) % 55) / 100).toFixed(3);
     const seed = `hmock${i}`;
     const cover = `https://picsum.photos/seed/${seed}/400/480`;
@@ -63,10 +64,11 @@ async function main() {
     const d2 = `https://picsum.photos/seed/${seed}b/750/820`;
     const desc = `辰星文化商城演示商品 No.${i}，图片为占位，可后续替换为实际上架素材。`.replace(/'/g, "''");
 
-    const sql = `INSERT INTO mall_products (title, price, sold_count, cover_url, cover_aspect, detail_images, description, status) VALUES (
+    const sql = `INSERT INTO mall_products (title, price, sold_count, stock, cover_url, cover_aspect, detail_images, description, status) VALUES (
   '${title}',
   ${price},
   ${sold},
+  ${stock},
   '${cover}',
   ${aspect},
   JSON_ARRAY('${d1}','${d2}'),

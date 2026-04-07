@@ -12,6 +12,8 @@ interface MallProductRow extends RowDataPacket {
   title: string;
   price: string | number;
   sold_count: number;
+  /** 可售库存件数（列缺失或 NULL 时由 SQL IFNULL 归为 0） */
+  stock?: number;
   cover_url: string;
   cover_aspect: string | number;
   detail_images: unknown;
@@ -56,7 +58,7 @@ function toSevenDayNoReason(row: MallProductRow): boolean {
 
 /**
  * GET /api/mall/products
- * 商城瀑布流分页列表：返回上架商品（含是否七天无理由等字段），供双列瀑布流展示。
+ * 商城瀑布流分页列表：返回上架商品（含库存、是否七天无理由等字段），供双列瀑布流展示。
  */
 router.get("/products", async (req: Request, res: Response) => {
   try {
@@ -77,7 +79,7 @@ router.get("/products", async (req: Request, res: Response) => {
     const total = Number(countRows[0]?.total ?? 0);
 
     const rows = await query<MallProductRow[]>(
-      `SELECT id, title, price, sold_count, cover_url, cover_aspect,
+      `SELECT id, title, price, sold_count, IFNULL(stock, 0) AS stock, cover_url, cover_aspect,
               IFNULL(seven_day_no_reason, 0) AS seven_day_no_reason
        FROM mall_products
        WHERE status = 1
@@ -90,6 +92,7 @@ router.get("/products", async (req: Request, res: Response) => {
       title: r.title,
       price: toPriceNumber(r.price),
       soldCount: Number(r.sold_count) || 0,
+      stock: Number(r.stock) || 0,
       coverUrl: r.cover_url,
       coverAspect: toAspectNumber(r.cover_aspect),
       sevenDayNoReason: toSevenDayNoReason(r),
@@ -114,7 +117,7 @@ router.get("/products", async (req: Request, res: Response) => {
 
 /**
  * GET /api/mall/products/:id
- * 商品详情：轮播图、价格、销量、七天无理由、标题与详情文案，供淘宝式详情页展示。
+ * 商品详情：轮播图、价格、销量、库存、七天无理由、标题与详情文案，供淘宝式详情页展示。
  */
 router.get("/products/:id", async (req: Request, res: Response) => {
   try {
@@ -125,7 +128,7 @@ router.get("/products/:id", async (req: Request, res: Response) => {
     }
 
     const row = await queryOne<MallProductRow>(
-      `SELECT id, title, price, sold_count, cover_url, cover_aspect, detail_images, description,
+      `SELECT id, title, price, sold_count, IFNULL(stock, 0) AS stock, cover_url, cover_aspect, detail_images, description,
               IFNULL(seven_day_no_reason, 0) AS seven_day_no_reason
        FROM mall_products
        WHERE id = ? AND status = 1`,
@@ -148,6 +151,7 @@ router.get("/products/:id", async (req: Request, res: Response) => {
         title: row.title,
         price: toPriceNumber(row.price),
         soldCount: Number(row.sold_count) || 0,
+        stock: Number(row.stock) || 0,
         coverUrl: row.cover_url,
         coverAspect: toAspectNumber(row.cover_aspect),
         sevenDayNoReason: toSevenDayNoReason(row),

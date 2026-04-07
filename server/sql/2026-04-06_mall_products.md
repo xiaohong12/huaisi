@@ -12,6 +12,7 @@
 | `title` | VARCHAR(255) | 商品标题 |
 | `price` | DECIMAL(10,2) | 售价（元） |
 | `sold_count` | INT UNSIGNED | 已售件数（列表展示「已售 xx」） |
+| `stock` | INT UNSIGNED | 可售库存件数（详情展示「库存 xx」；**2026-04-07 起**，见 `sql/2026-04-07_mall_stock.md`） |
 | `cover_url` | VARCHAR(1024) | 列表封面图，可为完整 `https://` 或相对路径（前端拼 `BASE_URL`） |
 | `cover_aspect` | DECIMAL(6,3) | 封面高宽比 height/width，用于瀑布流预估列高（如 1.25 表示图比宽「高」25%） |
 | `detail_images` | JSON | 详情页轮播图 URL 数组，如 `["https://..."]` |
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS mall_products (
   title VARCHAR(255) NOT NULL COMMENT '商品标题',
   price DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '售价（元）',
   sold_count INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '已售数量（件）',
+  stock INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '可售库存件数',
   cover_url VARCHAR(1024) NOT NULL COMMENT '列表封面图地址',
   cover_aspect DECIMAL(6,3) NOT NULL DEFAULT 1.000 COMMENT '封面高宽比 height/width，瀑布流排布用',
   detail_images JSON NULL COMMENT '详情轮播图 URL 的 JSON 数组',
@@ -49,12 +51,13 @@ CREATE TABLE IF NOT EXISTS mall_products (
 
 ```sql
 INSERT INTO mall_products
-  (title, price, sold_count, cover_url, cover_aspect, detail_images, description, status)
+  (title, price, sold_count, stock, cover_url, cover_aspect, detail_images, description, status)
 VALUES
   (
     '辰星文化限定帆布包 大容量通勤',
     89.00,
     3520,
+    800,
     'https://picsum.photos/seed/hmall1/400/520',
     1.300,
     JSON_ARRAY(
@@ -68,6 +71,7 @@ VALUES
     '电影主题手账套装 礼盒装',
     128.00,
     890,
+    420,
     'https://picsum.photos/seed/hmall2/400/360',
     0.900,
     JSON_ARRAY('https://picsum.photos/seed/hmall2a/750/700'),
@@ -78,6 +82,7 @@ VALUES
     '协会联名徽章组（3 枚入）',
     45.00,
     12050,
+    6000,
     'https://picsum.photos/seed/hmall3/400/480',
     1.200,
     JSON_ARRAY(
@@ -91,6 +96,7 @@ VALUES
     '文化展限定海报筒装',
     36.50,
     2103,
+    1500,
     'https://picsum.photos/seed/hmall4/400/540',
     1.350,
     JSON_ARRAY('https://picsum.photos/seed/hmall4a/750/900'),
@@ -101,6 +107,7 @@ VALUES
     '软胶公仔 桌面摆件',
     158.00,
     456,
+    260,
     'https://picsum.photos/seed/hmall5/400/500',
     1.250,
     JSON_ARRAY(
@@ -114,6 +121,7 @@ VALUES
     '纯棉活动 T 恤 多尺码',
     69.00,
     6780,
+    3500,
     'https://picsum.photos/seed/hmall6/400/400',
     1.000,
     JSON_ARRAY('https://picsum.photos/seed/hmall6a/750/750'),
@@ -124,5 +132,7 @@ VALUES
 
 ## 相关接口
 
-- `GET /api/mall/products?page=&pageSize=`：分页列表（上架商品）。
-- `GET /api/mall/products/:id`：商品详情（含轮播图与文案）。
+- `GET /api/mall/products?page=&pageSize=`：分页列表（上架商品，含 `soldCount`、`stock` 等）。
+- `GET /api/mall/products/:id`：商品详情（含轮播图与文案、`stock`）。
+
+已有库若缺 `stock` 列，请执行 `sql/alter_mall_stock.sql`（说明见 `sql/2026-04-07_mall_stock.md`）。
