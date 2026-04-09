@@ -56,3 +56,109 @@ export const getMallProductListApi = (
 export const getMallProductDetailApi = (id: number): Promise<ApiResponse<MallProductDetailDTO>> => {
   return request<MallProductDetailDTO>({ url: `/api/mall/products/${id}` });
 };
+
+/**
+ * 购物车单行（与 GET /api/mall/cart 的 list 元素一致）。
+ */
+export interface MallCartItemDTO {
+  /** 购物车表主键 mall_cart_items.id */
+  id: number;
+  productId: number;
+  title: string;
+  price: number;
+  quantity: number;
+  checked: boolean;
+  stock: number;
+  coverUrl: string;
+  coverAspect: number;
+  status: number;
+  sevenDayNoReason: boolean;
+  subtotal: number;
+}
+
+/**
+ * 购物车列表载荷。
+ */
+export interface MallCartListData {
+  list: MallCartItemDTO[];
+  totalCount: number;
+  totalAmount: number;
+}
+
+/**
+ * 拉取当前登录用户购物车列表，供底部购物车弹层展示。
+ */
+export const getMallCartApi = (): Promise<ApiResponse<MallCartListData>> => {
+  return request<MallCartListData>({ url: "/api/mall/cart" });
+};
+
+/**
+ * 加入购物车：同一商品重复加入时后端会累加数量。
+ */
+export const addMallCartApi = (
+  productId: number,
+  quantity: number = 1
+): Promise<ApiResponse<{ id: number; userId: number; productId: number; quantity: number }>> => {
+  return request({
+    url: "/api/mall/cart/add",
+    method: "POST",
+    data: { productId, quantity },
+  });
+};
+
+/**
+ * 修改购物车项：可更新数量、勾选状态，或两者同时更新。
+ */
+export const updateMallCartItemApi = (
+  cartId: number,
+  data: { quantity?: number; checked?: boolean }
+): Promise<ApiResponse<{ id: number; quantity: number; checked: boolean }>> => {
+  return request({
+    url: `/api/mall/cart/${cartId}`,
+    method: "PUT",
+    data,
+  });
+};
+
+/**
+ * 仅修改购物车项数量（对 updateMallCartItemApi 的便捷封装）。
+ */
+export const updateMallCartQuantityApi = (
+  cartId: number,
+  quantity: number
+): Promise<ApiResponse<{ id: number; quantity: number; checked: boolean }>> => {
+  return updateMallCartItemApi(cartId, { quantity });
+};
+
+/**
+ * 全选或取消全选当前用户购物车，用于底部「全选」与合计联动。
+ */
+export const selectAllMallCartApi = (
+  checked: boolean
+): Promise<ApiResponse<{ checked: boolean }>> => {
+  return request({
+    url: "/api/mall/cart/select-all",
+    method: "PUT",
+    data: { checked },
+  });
+};
+
+/**
+ * 删除购物车中一条记录。
+ */
+export const deleteMallCartItemApi = (cartId: number): Promise<ApiResponse<{ id: number }>> => {
+  return request({
+    url: `/api/mall/cart/${cartId}`,
+    method: "DELETE",
+  });
+};
+
+/**
+ * 清空当前用户购物车。
+ */
+export const clearMallCartApi = (): Promise<ApiResponse<{ deletedCount: number }>> => {
+  return request({
+    url: "/api/mall/cart",
+    method: "DELETE",
+  });
+};

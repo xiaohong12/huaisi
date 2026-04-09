@@ -77,21 +77,22 @@
 
     <!-- 底部操作栏：客服 / 店铺 / 购物车 + 加购 / 购买 -->
     <view class="bottom-bar safe-bottom">
-      <view class="bar-icon" @click="onPlaceholder('客服')">
-        <text class="bar-icon-dot">客</text>
-        <text class="bar-icon-t">客服</text>
-      </view>
-      <view class="bar-icon" @click="onPlaceholder('店铺')">
-        <text class="bar-icon-dot">店</text>
-        <text class="bar-icon-t">店铺</text>
-      </view>
-      <view class="bar-icon" @click="onPlaceholder('购物车')">
-        <text class="bar-icon-dot">购</text>
-        <text class="bar-icon-t">购物车</text>
+      <view class="bar-icon" @click="openCartSheet">
+        <view class="bar-icon-stack">
+          <image class="bar-icon-img" src="/static/image/shopping.png" mode="aspectFit" />
+          <text
+            v-show="plusOneVisible"
+            class="cart-plus-one"
+            :class="{ 'cart-plus-one--play': plusOneAnimating }"
+          >
+            +1
+          </text>
+        </view>
+        <text class="bar-icon-t bar-icon-t--cart">购物车</text>
       </view>
       <view class="bar-btns">
         <view class="bar-cap">
-          <view class="bar-cap-left" @click="onPlaceholder('加入购物车')">
+          <view class="bar-cap-left" @click="onAddToCart">
             <text class="bar-cap-left-t">加入购物车</text>
           </view>
           <view class="bar-cap-right" @click="onPlaceholder('立即购买')">
@@ -105,14 +106,17 @@
         </view>
       </view>
     </view>
+
+    <MallCartSheet v-model:show="cartSheetVisible" ref="cartSheetRef" />
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { resolveAssetUrl } from "@/utils/request";
-import { getMallProductDetailApi } from "@/api/mall";
+import { addMallCartApi, getMallProductDetailApi } from "@/api/mall";
+import MallCartSheet from "@/components/MallCartSheet.vue";
 
 const title = ref("");
 const price = ref(0);
@@ -122,6 +126,20 @@ const description = ref("");
 const detailImages = ref<string[]>([]);
 /** 是否支持七天无理由（与列表接口字段一致） */
 const sevenDayNoReason = ref(false);
+
+/** 当前商品 id（加购、打开购物车用） */
+const productId = ref(0);
+
+/** 底部购物车弹层是否展示 */
+const cartSheetVisible = ref(false);
+
+/** 购物车弹层实例，加购成功后若弹层已开则刷新列表 */
+const cartSheetRef = ref<InstanceType<typeof MallCartSheet> | null>(null);
+
+/** +1 提示：显示节点 + 是否播放 1.5s 淡入淡出 */
+const plusOneVisible = ref(false);
+const plusOneAnimating = ref(false);
+let plusOneTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** 轮播图每一张是否已加载（用于骨架层） */
 const gallerySlideLoaded = ref<Record<number, boolean>>({});
@@ -161,8 +179,72 @@ const formatSold = (n: number) => {
 };
 
 /**
- * 底部按钮占位：后续可接购物车与下单流程。
+ * 打开购物车底部弹层；未登录时提示先登录。
  */
+const openCartSheet = () => {
+  const token = uni.getStorageSync("token") as string | undefined;
+  if (!token) {
+    uni.showToast({ title: "请先登录", icon: "none" });
+    return;
+  }
+  cartSheetVisible.value = true;
+};
+
+/**
+ * 加购成功后，在购物车图标右上角播放与「购物车」文案同色（#ff4400）的 +1，约 1.5s 内淡入并淡出。
+ */
+const playCartPlusOne = () => {
+  if (plusOneTimer) {
+    clearTimeout(plusOneTimer);
+    plusOneTimer = null;
+  }
+  plusOneAnimating.value = false;
+  plusOneVisible.value = true;
+  void nextTick(() => {
+    plusOneAnimating.value = true;
+  });
+  plusOneTimer = setTimeout(() => {
+    plusOneAnimating.value = false;
+    plusOneVisible.value = false;
+    plusOneTimer = null;
+  }, 1500);
+};
+
+/**
+ * 加入购物车：调用后端累加数量；成功则提示并播放 +1 动画，若购物车弹层已打开则刷新列表。
+ */
+const onAddToCart = async () => {
+  const token = uni.getStorageSync("token") as string | undefined;
+  if (!token) {
+    uni.showToast({ title: "请先登录", icon: "none" });
+    return;
+  }
+  const id = productId.value;
+  if (!id) {
+    uni.showToast({ title: "商品无效", icon: "none" });
+    return;
+  }
+  const stock = Number(stockCount.value) || 0;
+  if (stock <= 0) {
+    uni.showToast({ title: "库存不足", icon: "none" });
+    return;
+  }
+  try {
+    const res = await addMallCartApi(id, 1);
+    if (res.code !== 0) {
+      uni.showToast({ title: res.message || "加购失败", icon: "none" });
+      return;
+    }
+    uni.showToast({ title: "已加入购物车", icon: "success" });
+    playCartPlusOne();
+    if (cartSheetVisible.value) {
+      cartSheetRef.value?.refresh?.();
+    }
+  } catch {
+    uni.showToast({ title: "网络异常", icon: "none" });
+  }
+};
+
 const onPlaceholder = (name: string) => {
   uni.showToast({ title: `${name}功能开发中`, icon: "none" });
 };
@@ -200,6 +282,7 @@ onLoad((query?: Record<string, string | undefined>) => {
     setTimeout(() => uni.navigateBack(), 400);
     return;
   }
+  productId.value = id;
   void loadDetail(id);
 });
 </script>
@@ -460,6 +543,47 @@ onLoad((query?: Record<string, string | undefined>) => {
   gap: 4rpx;
 }
 
+.bar-icon-stack {
+  position: relative;
+  width: 44rpx;
+  height: 44rpx;
+}
+
+.cart-plus-one {
+  position: absolute;
+  right: -10rpx;
+  top: -14rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #ff4400;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cart-plus-one--play {
+  animation: cart-plus-one-fade 1.5s ease forwards;
+}
+
+@keyframes cart-plus-one-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(10rpx) scale(0.85);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(-4rpx) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14rpx) scale(0.92);
+  }
+}
+
 .bar-icon-dot {
   width: 44rpx;
   height: 44rpx;
@@ -472,9 +596,19 @@ onLoad((query?: Record<string, string | undefined>) => {
   border-radius: 999rpx;
 }
 
+.bar-icon-img {
+  width: 44rpx;
+  height: 44rpx;
+  display: block;
+}
+
 .bar-icon-t {
   font-size: 20rpx;
   color: #6b7280;
+}
+
+.bar-icon-t--cart {
+  color: #ff4400;
 }
 
 .bar-btns {

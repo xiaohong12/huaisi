@@ -39,6 +39,23 @@ npm start
 
 - **`GET /api/posts?page=1&pageSize=20`**：分页拉取已发布帖子（`status=1`），含作者昵称、版块名、图片 URL 列表；**无需登录**。
 
+### 商城购物车
+
+- **`POST /api/mall/cart/add`**：加入购物车（需登录）。
+- **`GET /api/mall/cart`**：获取当前用户购物车列表（需登录）。
+- **`PUT /api/mall/cart/:id`**：修改购物车项数量（需登录）。
+- **`DELETE /api/mall/cart/:id`**：删除单个购物车项（需登录）。
+- **`DELETE /api/mall/cart`**：清空当前用户购物车（需登录）。
+- **鉴权**：请求头 `Authorization: Bearer <登录返回的 token>`。
+- **JSON Body**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `productId` | number | 是 | 商品 ID |
+| `quantity` | number | 否 | 加入数量，默认 `1`，必须为正整数 |
+
+- **业务规则**：同一用户重复加入同一商品时，数量自动累加（不是新增多条记录）。
+
 ### 帖子发布（与小程序发布页 `createPostApi` 对应）
 
 - **`POST /api/posts`** 或 **`POST /api/posts/publish`**（两者等价）
