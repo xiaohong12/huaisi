@@ -5,6 +5,7 @@ import authRouter from './auth';
 import postsRouter from './posts';
 import mallRouter from './mall';
 import aiRouter from './ai';
+import userRouter from './user';
 
 const router = Router();
 
@@ -16,6 +17,7 @@ router.use('/common', commonRouter);
 router.use('/auth', authRouter);
 router.use('/posts', postsRouter);
 router.use('/mall', mallRouter);
+router.use('/user', userRouter);
 router.use('/ai', aiRouter);
 
 export default router;

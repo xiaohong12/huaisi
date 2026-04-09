@@ -117,6 +117,12 @@ const handleMenuClick = (item: { key: string; title: string; short: string; desc
     });
     return;
   }
+  if (item.key === "address") {
+    uni.navigateTo({
+      url: "/pages/profile/address-list",
+    });
+    return;
+  }
   uni.showToast({
     title: `${item.title}功能开发中`,
     icon: "none",
