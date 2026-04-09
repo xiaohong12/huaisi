@@ -95,7 +95,7 @@
           <view class="bar-cap-left" @click="onAddToCart">
             <text class="bar-cap-left-t">加入购物车</text>
           </view>
-          <view class="bar-cap-right" @click="onPlaceholder('立即购买')">
+          <view class="bar-cap-right" @click="onBuyNow">
             <view class="bar-cap-price-line">
               <text class="bar-cap-hand-t">到手价 </text>
               <text class="bar-cap-yen-t">¥</text>
@@ -245,8 +245,28 @@ const onAddToCart = async () => {
   }
 };
 
-const onPlaceholder = (name: string) => {
-  uni.showToast({ title: `${name}功能开发中`, icon: "none" });
+/**
+ * 立即购买：已登录且库存充足时进入确认下单页。
+ */
+const onBuyNow = () => {
+  const token = uni.getStorageSync("token") as string | undefined;
+  if (!token) {
+    uni.showToast({ title: "请先登录", icon: "none" });
+    return;
+  }
+  const id = productId.value;
+  if (!id) {
+    uni.showToast({ title: "商品无效", icon: "none" });
+    return;
+  }
+  const s = Number(stockCount.value) || 0;
+  if (s <= 0) {
+    uni.showToast({ title: "库存不足", icon: "none" });
+    return;
+  }
+  uni.navigateTo({
+    url: `/pages/order/checkout?id=${id}&quantity=1`,
+  });
 };
 
 /**

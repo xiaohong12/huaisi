@@ -19,7 +19,8 @@
     "morgan": "^1.10.0",
     "multer": "^2.1.1",
     "mysql2": "^3.20.0",
-    "openai": "^6.34.0"
+    "openai": "^6.34.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -27,6 +28,7 @@
     "@types/morgan": "^1.9.9",
     "@types/multer": "^2.1.0",
     "@types/node": "^20.10.0",
+    "@types/qrcode": "^1.5.6",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.2"
   }
