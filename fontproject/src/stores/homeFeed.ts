@@ -4,7 +4,7 @@ import { getPostFeedApi, type PostFeedItemDTO } from "@/api/post";
 import { HOME_FEED_CACHE_KEY } from "@/constants/storageKeys";
 
 /** 缓存结构版本号：字段变更时递增，旧缓存自动丢弃 */
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 /** 缓存有效期（毫秒），过期仍可先展示旧数据并后台刷新 */
 const CACHE_TTL_MS = 60 * 1000;
 
@@ -20,6 +20,8 @@ export interface HomePostCard {
   tagBg: string;
   tagColor: string;
   title: string;
+  /** 正文全文 */
+  content: string;
   excerpt: string;
   images: string[];
   comments: number;
@@ -87,6 +89,7 @@ const mapFeedItem = (item: PostFeedItemDTO): HomePostCard => {
     tagBg,
     tagColor,
     title: item.title,
+    content: item.content ?? "",
     excerpt: item.excerpt || "",
     images,
     comments: item.commentCount,

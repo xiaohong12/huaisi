@@ -42,6 +42,8 @@ export const createPostApi = (payload: CreatePostPayload): Promise<ApiResponse<C
 export interface PostFeedItemDTO {
   id: number;
   title: string;
+  /** 正文全文，列表卡片折叠时只展示 excerpt，展开后展示本字段 */
+  content: string;
   excerpt: string;
   commentCount: number;
   likeCount: number;

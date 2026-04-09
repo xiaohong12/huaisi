@@ -5,7 +5,7 @@ declare const wx: any;
  * 消息类型定义
  */
 export interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
 }
 

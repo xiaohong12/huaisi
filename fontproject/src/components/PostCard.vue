@@ -18,7 +18,28 @@
     </view>
 
     <text class="post-title">{{ post.title }}</text>
-    <text class="post-body">{{ post.excerpt }}</text>
+    <!-- 正文最多展示 3 行；超过 3 行时在第三行末尾与 … 同一行显示「展开」 -->
+    <view class="post-body-block">
+      <template v-if="!bodyExpanded">
+        <view :id="'body-measure-' + post.id" class="post-body-measure" aria-hidden="true">
+          <text class="post-body">{{ post.content }}</text>
+        </view>
+        <view class="post-body-clamp-wrap">
+          <view class="post-body post-body--clamp">
+            <text>{{ post.content }}</text>
+          </view>
+          <text
+            v-if="showBodyExpand"
+            class="post-body-toggle post-body-toggle--inline"
+            @click.stop="bodyExpanded = true"
+          >展开</text>
+        </view>
+      </template>
+      <template v-else>
+        <text class="post-body post-body--full">{{ post.content }}</text>
+        <text class="post-body-toggle post-body-toggle--below" @click.stop="bodyExpanded = false">收起</text>
+      </template>
+    </view>
 
     <!-- 多图：与原先一致横向等分 + 固定高度；单图：半宽 + widthFix。点击可预览，多图可滑动切换 -->
     <view class="img-grid" :class="{ 'img-grid--single': isSinglePostImage }">
@@ -113,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, getCurrentInstance, nextTick, onMounted, ref, watch } from "vue";
 import iconMessage from "@/static/image/message.png";
 import iconLike from "@/static/image/like.png";
 import iconLove from "@/static/image/love.png";
@@ -137,7 +158,8 @@ interface PostItem {
   tagBg: string;
   tagColor: string;
   title: string;
-  excerpt: string;
+  /** 正文，与列表接口 content 一致 */
+  content: string;
   images: string[];
   comments: number;
   likes: number;
@@ -149,6 +171,56 @@ interface PostItem {
 const props = defineProps<{
   post: PostItem;
 }>();
+
+/** 正文是否已展开（仅当前卡片） */
+const bodyExpanded = ref(false);
+/** 折叠态正文超过 3 行时为 true，用于显示行尾「展开」 */
+const showBodyExpand = ref(false);
+
+const instance = getCurrentInstance();
+
+/**
+ * 根据隐藏测量节点高度估算行数，超过 3 行则显示「展开」。
+ */
+const measureBodyExpand = () => {
+  const raw = props.post.content ?? "";
+  if (!raw.trim()) {
+    showBodyExpand.value = false;
+    return;
+  }
+  nextTick(() => {
+    const q = uni.createSelectorQuery();
+    const proxy = instance?.proxy;
+    if (proxy) {
+      // 组件内查询节点，需挂载到当前页面实例
+      q.in(proxy as any);
+    }
+    q.select(`#body-measure-${props.post.id}`)
+      .boundingClientRect((rect) => {
+        const r = Array.isArray(rect) ? rect[0] : rect;
+        if (!r || typeof r.height !== "number" || r.height <= 0) {
+          showBodyExpand.value = false;
+          return;
+        }
+        const lineH = uni.upx2px(26) * 1.55;
+        const lines = Math.ceil(r.height / lineH - 0.001);
+        showBodyExpand.value = lines > 3;
+      })
+      .exec();
+  });
+};
+
+watch(
+  () => [props.post.id, props.post.content] as const,
+  () => {
+    bodyExpanded.value = false;
+    measureBodyExpand();
+  }
+);
+
+onMounted(() => {
+  measureBodyExpand();
+});
 
 const emit = defineEmits<{
   (e: "more", id: number): void;
@@ -490,12 +562,76 @@ const onComposerBlur = () => {
   line-height: 1.35;
 }
 
-.post-body {
-  display: block;
+.post-body-block {
+  position: relative;
   margin-top: 12rpx;
+}
+
+/* 与正文同宽、不可见，用于估算是否超过 3 行 */
+.post-body-measure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  opacity: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.post-body-measure .post-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.post-body-clamp-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.post-body {
   font-size: 26rpx;
   color: #6b7280;
   line-height: 1.55;
+}
+
+/* 折叠态最多 3 行，末尾由系统 … 截断 */
+.post-body--clamp {
+  display: -webkit-box;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.post-body--full {
+  display: block;
+  margin-top: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 贴在第三行末尾，与 … 同一行（渐变盖住重叠正文） */
+.post-body-toggle--inline {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding-left: 72rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  line-height: 1.55;
+  color: #0d5aff;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #ffffff 35%, #ffffff 100%);
+}
+
+.post-body-toggle--below {
+  display: inline-block;
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #0d5aff;
 }
 
 .img-grid {

@@ -42,7 +42,7 @@
         <!-- AI 入口：左图标 + 横向蓝→紫粉渐变文案 + 右箭头 -->
         <view class="ai-generate-row" @click="onAiGenerateTap">
           <image class="ai-gen-img" src="/static/image/ai-technology.png" mode="aspectFit" />
-          <text class="ai-generate-text">ai帮你写</text>
+          <text class="ai-generate-text">ai帮你润色</text>
           <u-icon class="ai-gen-arrow" name="arrow-right" :size="18" color="#c026d3" />
         </view>
       </view>
@@ -57,6 +57,71 @@
       />
     </view>
 
+    <u-popup
+      :show="aiSheetVisible"
+      mode="bottom"
+      round="20"
+      @close="closeAiSheet"
+      @open="onAiSheetOpen"
+    >
+      <view class="ai-sheet">
+        <view class="ai-sheet-header">
+          <text class="ai-sheet-title">AI 润色</text>
+          <u-icon name="close" :size="20" color="#64748b" @click="closeAiSheet" />
+        </view>
+
+        <view class="ai-role-list">
+          <view
+            v-for="item in aiRoleOptions"
+            :key="item.key"
+            class="ai-role-item"
+            :class="{ 'ai-role-item--active': aiRoleKey === item.key }"
+            @click="aiRoleKey = item.key"
+          >
+            {{ item.label }}
+          </view>
+        </view>
+
+        <view class="ai-field-label">润色结果（可编辑）</view>
+        <textarea
+          v-model="aiPolishedText"
+          class="ai-sheet-textarea"
+          :maxlength="2000"
+          auto-height
+          placeholder="点击“开始润色”后，这里会展示 AI 润色结果"
+          placeholder-class="input-ph"
+        />
+
+        <view class="ai-field-label ai-field-label--margin">原文输入</view>
+        <textarea
+          v-model.trim="aiRawText"
+          class="ai-sheet-textarea ai-sheet-textarea--input"
+          :maxlength="2000"
+          auto-height
+          placeholder="请输入需要润色的内容"
+          placeholder-class="input-ph"
+        />
+
+        <view class="ai-sheet-footer">
+          <u-button
+            text="开始润色"
+            shape="circle"
+            :loading="aiPolishLoading"
+            :disabled="aiPolishLoading"
+            :custom-style="aiActionBtnStyle"
+            @click="onAiPolishSubmit"
+          />
+          <u-button
+            text="使用润色结果"
+            shape="circle"
+            :disabled="!aiPolishedText.trim()"
+            :custom-style="aiUseBtnStyle"
+            @click="onUsePolishedText"
+          />
+        </view>
+      </view>
+    </u-popup>
+
     <u-toast ref="uToastRef" />
   </view>
 </template>
@@ -66,6 +131,7 @@ import { ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 import { createPostApi, type PublishSectionKey } from "@/api/post";
 import { uploadImageApi } from "@/api/common";
+import { streamAiChat, type ChatMessage } from "@/api/ai";
 import { HOME_FEED_REFRESH_FLAG } from "@/constants/storageKeys";
 
 /** 上传列表项（与 u-upload fileList 结构兼容） */
@@ -84,12 +150,49 @@ const sectionKey = ref<PublishSectionKey | "">("");
 const title = ref("");
 const content = ref("");
 const fileList = ref<UploadFileItem[]>([]);
+const aiSheetVisible = ref(false);
+const aiRawText = ref("");
+const aiPolishedText = ref("");
+const aiPolishLoading = ref(false);
+const aiRoleKey = ref<AiRoleKey>("anime_pro");
+
+type AiRoleKey = "anime_pro" | "professional" | "brief";
+interface AiRoleOption {
+  key: AiRoleKey;
+  label: string;
+  systemPrompt: string;
+}
+
+const aiRoleOptions: AiRoleOption[] = [
+  {
+    key: "anime_pro",
+    label: "润色文案",
+    systemPrompt:
+      "你是一名二次元风格的小姐姐文案助手，只负责把用户文案润色成可爱、元气、自然的二次元表达。请在不改变事实信息和核心观点的前提下，优化语句顺序与阅读流畅度，适度加入轻量语气词（如“呀”“呢”“喔”），但不要过度卖萌。不要编造信息，不要偏离原意，只输出中文最终稿。",
+  },
+  {
+    key: "professional",
+    label: "文案拓写",
+    systemPrompt:
+      "你是一名二次元风格的小姐姐文案编辑，擅长在保留原意的基础上进行文案拓写。请将用户文本写得更完整、更有画面感和感染力，语气保持可爱、元气、礼貌，适度加入轻量二次元语感（如“呀”“呢”“喔”），但不要过度卖萌。不要编造事实，不要偏离主题，输出中文最终稿。",
+  },
+  {
+    key: "brief",
+    label: "精简风",
+    systemPrompt:
+      "你是一名二次元风格的小姐姐精简写作助手。请在保留核心信息的前提下，把文案精简得更清晰、更易读，同时保持可爱、自然的二次元语气（轻量语气词即可，不要过度卖萌）。不要新增事实，不要跑题，只输出中文最终稿。",
+  },
+];
 
 /** uview-plus Toast，用于校验提示与发布成功/失败 */
 const uToastRef = ref<{ show: (opt: Record<string, unknown>) => void; hide: () => void } | null>(null);
 
 const publishBtnStyle =
   "width: 100%; height: 88rpx; font-size: 32rpx; font-weight: 600; color: #ffffff; background: linear-gradient(180deg, #2a79ff 0%, #0d5aff 100%); border: none; box-shadow: 0 12rpx 28rpx rgba(13, 90, 255, 0.35);";
+const aiActionBtnStyle =
+  "flex: 1; height: 84rpx; font-size: 30rpx; font-weight: 600; color: #ffffff; background: linear-gradient(180deg, #7c3aed 0%, #6d28d9 100%); border: none;";
+const aiUseBtnStyle =
+  "flex: 1; height: 84rpx; font-size: 30rpx; font-weight: 600; color: #4f46e5; background: #ede9fe; border: 1rpx solid #c4b5fd;";
 
 /** 展示名 → 接口 sectionKey（兼容仅带 category 的旧链接） */
 const LABEL_TO_KEY: Record<string, PublishSectionKey> = {
@@ -161,11 +264,116 @@ const afterRead = (event: { file: UploadFileItem | UploadFileItem[] }) => {
   });
 };
 
+const getAiRoleOption = (roleKey: AiRoleKey): AiRoleOption =>
+  aiRoleOptions.find((item) => item.key === roleKey) || aiRoleOptions[0];
+
 /**
- * AI 智能生成入口：后续可跳转 AI 成片 / 文案生成等能力。
+ * 调用 AI 对话接口完成文案润色，按流式返回拼接完整文本。
+ */
+const runAiPolish = (raw: string, roleKey: AiRoleKey): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const role = getAiRoleOption(roleKey);
+    let finalText = "";
+    let settled = false;
+    const messages: ChatMessage[] = [
+      { role: "system", content: role.systemPrompt },
+      {
+        role: "user",
+        content:
+          `请润色下面这段文案，保持原意与事实，不要编造信息。\n` +
+          `润色后直接输出最终文案，不要加“润色后如下”等说明。\n\n` +
+          `原文：\n${raw}`,
+      },
+    ];
+
+    const task = streamAiChat(
+      messages,
+      (chunk) => {
+        finalText += chunk;
+        aiPolishedText.value = finalText;
+      },
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(finalText.trim());
+      },
+      (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(new Error(err || "AI 润色失败"));
+      }
+    );
+
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      task?.abort?.();
+      reject(new Error("AI 响应超时，请稍后重试"));
+    }, 45000);
+  });
+
+/**
+ * 点击 AI 入口：弹出底部润色面板。
  */
 const onAiGenerateTap = () => {
-  uni.showToast({ title: "AI 智能生成开发中", icon: "none" });
+  aiRawText.value = content.value.trim();
+  aiPolishedText.value = "";
+  aiSheetVisible.value = true;
+};
+
+/** 关闭 AI 底部弹窗。 */
+const closeAiSheet = () => {
+  aiSheetVisible.value = false;
+};
+
+/** AI 面板打开后的兜底处理。 */
+const onAiSheetOpen = () => {
+  if (!aiRawText.value && content.value.trim()) {
+    aiRawText.value = content.value.trim();
+  }
+};
+
+/**
+ * 提交润色：将下方原文按当前角色发送给 AI，结果实时写入上方文本框。
+ */
+const onAiPolishSubmit = async () => {
+  const raw = aiRawText.value.trim();
+  if (!raw) {
+    uToastRef.value?.show({ type: "warning", message: "请先输入需要润色的内容" });
+    return;
+  }
+  aiPolishLoading.value = true;
+  aiPolishedText.value = "";
+  try {
+    const polished = await runAiPolish(raw, aiRoleKey.value);
+    if (!polished) {
+      uToastRef.value?.show({ type: "warning", message: "未获取到润色结果，请重试" });
+      return;
+    }
+    aiPolishedText.value = polished;
+    uToastRef.value?.show({ type: "success", message: "润色完成" });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "AI 润色失败，请稍后重试";
+    uToastRef.value?.show({ type: "error", message: msg });
+  } finally {
+    aiPolishLoading.value = false;
+  }
+};
+
+/**
+ * 使用润色结果：将上方文本应用到正文并关闭弹窗。
+ */
+const onUsePolishedText = () => {
+  const polished = aiPolishedText.value.trim();
+  if (!polished) {
+    uToastRef.value?.show({ type: "warning", message: "暂无可用的润色结果" });
+    return;
+  }
+  content.value = polished;
+  aiSheetVisible.value = false;
+  uToastRef.value?.show({ type: "success", message: "已应用到正文" });
 };
 
 /**
@@ -365,5 +573,79 @@ const onPublish = async () => {
   padding: 20rpx 16rpx calc(20rpx + env(safe-area-inset-bottom));
   background: #f5f5f5;
   box-shadow: 0 -8rpx 32rpx rgba(15, 23, 42, 0.06);
+}
+
+.ai-sheet {
+  padding: 24rpx 16rpx calc(24rpx + env(safe-area-inset-bottom));
+  background: #ffffff;
+}
+
+.ai-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ai-sheet-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ai-role-list {
+  margin-top: 20rpx;
+  display: flex;
+  gap: 16rpx;
+}
+
+.ai-role-item {
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1rpx solid #e2e8f0;
+}
+
+.ai-role-item--active {
+  color: #6d28d9;
+  background: #f3e8ff;
+  border-color: #c4b5fd;
+}
+
+.ai-field-label {
+  margin-top: 24rpx;
+  margin-bottom: 12rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #334155;
+}
+
+.ai-field-label--margin {
+  margin-top: 20rpx;
+}
+
+.ai-sheet-textarea {
+  width: 100%;
+  min-height: 180rpx;
+  max-height: 340rpx;
+  box-sizing: border-box;
+  padding: 20rpx;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  line-height: 1.55;
+  color: #1e293b;
+  background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
+}
+
+.ai-sheet-textarea--input {
+  background: #ffffff;
+}
+
+.ai-sheet-footer {
+  margin-top: 24rpx;
+  display: flex;
+  gap: 16rpx;
 }
 </style>

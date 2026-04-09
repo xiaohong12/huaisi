@@ -24,6 +24,7 @@ interface CreatePostBody {
 interface PostFeedRow extends RowDataPacket {
   id: number;
   title: string;
+  content: string;
   excerpt: string | null;
   comment_count: number;
   like_count: number;
@@ -37,6 +38,8 @@ interface PostFeedRow extends RowDataPacket {
 interface PostFeedItemJson {
   id: number;
   title: string;
+  /** 正文全文，供列表卡片「展开」后展示 */
+  content: string;
   excerpt: string;
   commentCount: number;
   likeCount: number;
@@ -195,6 +198,7 @@ function toFeedItemJson(
   return {
     id: r.id,
     title: r.title,
+    content: r.content ?? "",
     excerpt: r.excerpt ?? "",
     commentCount: r.comment_count,
     likeCount: r.like_count,
@@ -216,7 +220,7 @@ async function getPostFeedItemById(
   viewerUserId: number | undefined
 ): Promise<PostFeedItemJson | null> {
   const row = await queryOne<PostFeedRow>(
-    `SELECT p.id, p.title, p.excerpt, p.comment_count, p.like_count, p.favorite_count,
+    `SELECT p.id, p.title, p.content, p.excerpt, p.comment_count, p.like_count, p.favorite_count,
             u.nickname, u.avatar, sec.name AS section_name
      FROM posts p
      INNER JOIN users u ON u.id = p.user_id
@@ -239,12 +243,13 @@ async function getPostFeedItemById(
 }
 
 /**
- * 截取列表摘要：优先用标题，否则截取正文。
+ * 截取列表摘要：固定使用正文前 40 个字符（去掉首尾空白）。
  */
-function buildExcerpt(title: string, content: string): string {
-  const base = title.trim() || content.trim();
-  if (base.length <= 255) return base;
-  return `${base.slice(0, 252)}...`;
+function buildExcerpt(content: string): string {
+  const base = content.trim();
+  if (!base) return "";
+  if (base.length <= 40) return base;
+  return base.slice(0, 40);
 }
 
 /**
@@ -260,7 +265,7 @@ async function listFeedHandler(req: Request, res: Response): Promise<void> {
     const offsetN = Math.floor(offsetRaw);
 
     const rows = await query<PostFeedRow[]>(
-      `SELECT p.id, p.title, p.excerpt, p.comment_count, p.like_count, p.favorite_count,
+      `SELECT p.id, p.title, p.content, p.excerpt, p.comment_count, p.like_count, p.favorite_count,
               u.nickname, u.avatar, sec.name AS section_name
        FROM posts p
        INNER JOIN users u ON u.id = p.user_id
@@ -365,7 +370,7 @@ const createPostHandler: RequestHandler<unknown, unknown, CreatePostBody> = asyn
       return;
     }
 
-    const excerpt = buildExcerpt(title, content);
+    const excerpt = buildExcerpt(content);
 
     const postId = await transaction(async (conn: PoolConnection) => {
       const [insertResult] = await conn.execute<ResultSetHeader>(
