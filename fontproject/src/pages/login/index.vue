@@ -358,9 +358,14 @@ const toggleAgreement = () => {
   border-radius: 41rpx;
   border: none;
   font-size: 30rpx;
-  line-height: 82rpx;
   margin: 0;
   font-weight: 700;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .btn::after {

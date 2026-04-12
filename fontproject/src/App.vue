@@ -25,4 +25,20 @@ onHide(() => {
 <style lang="scss">
 /* uview-plus 基础样式，须写在首行；勿把 index.scss 放进 uni.scss，避免包体过大 */
 @import "uview-plus/index.scss";
+
+/**
+ * 小程序原生 button 默认排版易导致文字偏上；统一 flex 使 u-button 内文案水平垂直居中。
+ */
+button.u-button {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box;
+}
+
+.u-button .u-button__text,
+.u-button .u-button__loading-text {
+  text-align: center;
+}
 </style>

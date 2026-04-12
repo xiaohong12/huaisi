@@ -344,7 +344,12 @@ const handlePhonePasswordLogin = async () => {
   background: #0833b8;
   color: #ffffff;
   font-size: 30rpx;
-  line-height: 82rpx;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .submit-btn::after {

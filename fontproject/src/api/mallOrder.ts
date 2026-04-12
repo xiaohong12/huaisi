@@ -46,6 +46,31 @@ export interface MallOrderItemDTO {
 }
 
 /**
+ * 订单列表单项（与 GET /api/mall/orders 的 list 元素一致）。
+ */
+export interface MallOrderListItem {
+  id: number;
+  orderNo: string;
+  storeName: string;
+  totalAmount: number;
+  paymentStatus: number;
+  firstTitle: string;
+  firstCover: string;
+  itemCount: number;
+  createdAt: string;
+}
+
+/**
+ * 分页订单列表载荷。
+ */
+export interface MallOrderListData {
+  list: MallOrderListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
  * 订单详情载荷。
  */
 export interface MallOrderDetailData {
@@ -76,6 +101,28 @@ export const createMallOrderApi = (
     url: "/api/mall/orders",
     method: "POST",
     data: payload as unknown as Record<string, unknown>,
+  });
+};
+
+/**
+ * 分页拉取当前用户的商城订单列表（我的订单页）。
+ */
+export const getMallOrderListApi = (params?: {
+  page?: number;
+  pageSize?: number;
+  /** 0 待支付 / 1 已支付；不传则返回全部（用于个人中心订单总数等） */
+  paymentStatus?: 0 | 1;
+}): Promise<ApiResponse<MallOrderListData>> => {
+  const data: Record<string, unknown> = {
+    page: params?.page ?? 1,
+    pageSize: params?.pageSize ?? 10,
+  };
+  if (params?.paymentStatus === 0 || params?.paymentStatus === 1) {
+    data.paymentStatus = params.paymentStatus;
+  }
+  return request<MallOrderListData>({
+    url: "/api/mall/orders",
+    data,
   });
 };
 

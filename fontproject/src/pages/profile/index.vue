@@ -17,8 +17,8 @@
       </view>
 
       <view class="quick-panel">
-        <view class="quick-item">
-          <text class="quick-value">12</text>
+        <view class="quick-item" @click="goOrderList">
+          <text class="quick-value">{{ orderCountText }}</text>
           <text class="quick-label">订单</text>
         </view>
         <view class="quick-divider" />
@@ -64,8 +64,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { onShow } from "@dcloudio/uni-app";
 import CustomTabBar from "@/components/CustomTabBar.vue";
+import { getMallOrderListApi } from "@/api/mallOrder";
 
 /**
  * 本地缓存中的用户数据结构。
@@ -94,6 +96,51 @@ const displayUser = computed(() => {
   const username = cacheUser?.nickname || cacheUser?.username || "未登录用户";
   const avatar = cacheUser?.avatar || "";
   return { username, avatar };
+});
+
+/** 个人中心展示的订单数量；未登录或请求失败时显示占位 */
+const orderTotal = ref<number | null>(null);
+
+/**
+ * 订单数量展示文案。
+ */
+const orderCountText = computed(() => {
+  if (!uni.getStorageSync("token")) return "—";
+  if (orderTotal.value === null) return "…";
+  return String(orderTotal.value);
+});
+
+/**
+ * 进入我的订单列表页。
+ */
+const goOrderList = () => {
+  uni.navigateTo({
+    url: "/pages/profile/order-list",
+  });
+};
+
+/**
+ * 已登录时拉取订单总数，用于快捷区数字展示。
+ */
+const refreshOrderCount = async () => {
+  if (!uni.getStorageSync("token")) {
+    orderTotal.value = null;
+    return;
+  }
+  try {
+    const res = await getMallOrderListApi({ page: 1, pageSize: 1 });
+    if (res.code === 0 && res.data) {
+      orderTotal.value = res.data.total;
+    } else {
+      orderTotal.value = 0;
+    }
+  } catch {
+    orderTotal.value = 0;
+  }
+};
+
+onShow(() => {
+  refreshOrderCount();
 });
 
 /**

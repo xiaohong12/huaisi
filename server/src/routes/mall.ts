@@ -766,6 +766,112 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/mall/orders
+ * 分页查询当前登录用户的商城订单列表；每条带首件商品标题/封面与商品行数，供小程序「我的订单」列表展示。
+ * 查询参数：page（默认 1）、pageSize（默认 10，最大 50）；paymentStatus 可选，0=仅待支付、1=仅已支付，不传则不分状态（个人中心订单总数等场景）。
+ */
+router.get("/orders", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = Number(req.userId || 0);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      errorResponse(res, "请先登录", 401);
+      return;
+    }
+
+    const pageRaw = parseInt(String(req.query.page ?? "1"), 10);
+    const sizeRaw = parseInt(String(req.query.pageSize ?? "10"), 10);
+    const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const pageSize =
+      Number.isFinite(sizeRaw) && sizeRaw > 0 ? Math.min(50, sizeRaw) : 10;
+    const offset = (page - 1) * pageSize;
+    /** LIMIT/OFFSET 不用占位符：部分 MySQL + mysql2 预编译会报 ER_WRONG_ARGUMENTS；此处已收窄为安全整数 */
+    const safeLimit = Math.floor(pageSize);
+    const safeOffset = Math.max(0, Math.floor(offset));
+
+    const psQ = req.query.paymentStatus;
+    const psRaw = Array.isArray(psQ) ? psQ[0] : psQ;
+    let paymentStatusFilter: 0 | 1 | null = null;
+    if (psRaw !== undefined && psRaw !== "") {
+      const n = parseInt(String(psRaw), 10);
+      if (n === 0 || n === 1) {
+        paymentStatusFilter = n as 0 | 1;
+      }
+    }
+
+    interface CountRow extends RowDataPacket {
+      cnt: number;
+    }
+    const countSql =
+      paymentStatusFilter === null
+        ? `SELECT COUNT(*) AS cnt FROM mall_orders WHERE user_id = ?`
+        : `SELECT COUNT(*) AS cnt FROM mall_orders WHERE user_id = ? AND payment_status = ?`;
+    const countParams =
+      paymentStatusFilter === null ? [userId] : [userId, paymentStatusFilter];
+    const countRow = await queryOne<CountRow>(countSql, countParams);
+    const total = Number(countRow?.cnt) || 0;
+
+    interface MallOrderListDbRow extends RowDataPacket {
+      id: number;
+      order_no: string;
+      store_name: string;
+      total_amount: string | number;
+      payment_status: number;
+      created_at: string;
+      first_title: string | null;
+      first_cover: string | null;
+      item_count: number;
+    }
+
+    const listSql =
+      paymentStatusFilter === null
+        ? `SELECT o.id, o.order_no, o.store_name, o.total_amount, o.payment_status, o.created_at,
+              (SELECT i.title FROM mall_order_items i WHERE i.order_id = o.id ORDER BY i.id ASC LIMIT 1) AS first_title,
+              (SELECT i.cover_url FROM mall_order_items i WHERE i.order_id = o.id ORDER BY i.id ASC LIMIT 1) AS first_cover,
+              (SELECT COUNT(*) FROM mall_order_items i WHERE i.order_id = o.id) AS item_count
+       FROM mall_orders o
+       WHERE o.user_id = ?
+       ORDER BY o.id DESC
+       LIMIT ${safeLimit} OFFSET ${safeOffset}`
+        : `SELECT o.id, o.order_no, o.store_name, o.total_amount, o.payment_status, o.created_at,
+              (SELECT i.title FROM mall_order_items i WHERE i.order_id = o.id ORDER BY i.id ASC LIMIT 1) AS first_title,
+              (SELECT i.cover_url FROM mall_order_items i WHERE i.order_id = o.id ORDER BY i.id ASC LIMIT 1) AS first_cover,
+              (SELECT COUNT(*) FROM mall_order_items i WHERE i.order_id = o.id) AS item_count
+       FROM mall_orders o
+       WHERE o.user_id = ? AND o.payment_status = ?
+       ORDER BY o.id DESC
+       LIMIT ${safeLimit} OFFSET ${safeOffset}`;
+    const listParams =
+      paymentStatusFilter === null ? [userId] : [userId, paymentStatusFilter];
+
+    const rows = await query<MallOrderListDbRow[]>(listSql, listParams);
+
+    successResponse(
+      res,
+      {
+        list: rows.map((r) => ({
+          id: r.id,
+          orderNo: r.order_no,
+          storeName: r.store_name,
+          totalAmount: toPriceNumber(r.total_amount),
+          paymentStatus: Number(r.payment_status) || 0,
+          createdAt: r.created_at,
+          firstTitle: r.first_title ?? "",
+          firstCover: r.first_cover ?? "",
+          itemCount: Number(r.item_count) || 0,
+        })),
+        total,
+        page,
+        pageSize,
+      },
+      "Success"
+    );
+  } catch (e) {
+    console.error("[mall] order list", e);
+    errorResponse(res, "订单列表获取失败", 500);
+  }
+});
+
+/**
  * GET /api/mall/orders/:id
  * 查询单笔订单详情（含明细行），仅允许订单所属用户访问。
  */

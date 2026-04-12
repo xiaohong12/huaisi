@@ -668,6 +668,8 @@ onLoad((query?: Record<string, string | undefined>) => {
   font-size: 24rpx;
   font-weight: 600;
   color: #ff3355;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .bar-cap-right {
@@ -697,6 +699,7 @@ onLoad((query?: Record<string, string | undefined>) => {
   font-weight: 400;
   color: #ffffff;
   line-height: 1.2;
+  text-align: center;
 }
 
 .bar-cap-num-t {
@@ -704,6 +707,7 @@ onLoad((query?: Record<string, string | undefined>) => {
   font-weight: 700;
   color: #ffffff;
   line-height: 1.2;
+  text-align: center;
 }
 
 /* 副文案：小于「到手价 + 金额」一行 */
@@ -712,5 +716,6 @@ onLoad((query?: Record<string, string | undefined>) => {
   font-weight: 600;
   color: rgba(255, 255, 255, 0.92);
   line-height: 1.2;
+  text-align: center;
 }
 </style>

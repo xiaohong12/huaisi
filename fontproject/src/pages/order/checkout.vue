@@ -111,9 +111,13 @@
     <view v-if="remarkModalVisible" class="remark-mask" @click="cancelRemarkModal">
       <view class="remark-sheet" @click.stop>
         <view class="remark-sheet-toolbar">
-          <text class="remark-sheet-btn remark-sheet-btn--muted" @click="cancelRemarkModal">取消</text>
+          <view class="remark-sheet-btn remark-sheet-btn--muted" @click="cancelRemarkModal">
+            <text class="remark-sheet-btn-t">取消</text>
+          </view>
           <text class="remark-sheet-title">订单备注</text>
-          <text class="remark-sheet-btn remark-sheet-btn--primary" @click="confirmRemarkModal">完成</text>
+          <view class="remark-sheet-btn remark-sheet-btn--primary" @click="confirmRemarkModal">
+            <text class="remark-sheet-btn-t">完成</text>
+          </view>
         </view>
         <view class="remark-sheet-body">
           <textarea
@@ -533,8 +537,11 @@ onShow(() => {
   width: 56rpx;
   height: 48rpx;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  text-align: center;
+  line-height: 1;
   font-size: 32rpx;
   color: #6b7280;
   background: #f9fafb;
@@ -632,15 +639,27 @@ onShow(() => {
 }
 
 .remark-sheet-btn {
-  font-size: 28rpx;
-  padding: 8rpx 12rpx;
+  padding: 0 12rpx;
+  min-width: 96rpx;
+  min-height: 64rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
 }
 
-.remark-sheet-btn--muted {
+.remark-sheet-btn-t {
+  font-size: 28rpx;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.remark-sheet-btn--muted .remark-sheet-btn-t {
   color: #6b7280;
 }
 
-.remark-sheet-btn--primary {
+.remark-sheet-btn--primary .remark-sheet-btn-t {
   color: #ff5000;
   font-weight: 600;
 }
@@ -753,6 +772,8 @@ onShow(() => {
   font-size: 28rpx;
   font-weight: 700;
   color: #ffffff;
+  text-align: center;
+  line-height: 1;
 }
 
 .pay-mid {
@@ -800,6 +821,8 @@ onShow(() => {
   font-size: 24rpx;
   color: #ffffff;
   font-weight: 700;
+  text-align: center;
+  line-height: 1;
 }
 
 .scroll-space {
@@ -835,6 +858,8 @@ onShow(() => {
   font-size: 30rpx;
   font-weight: 700;
   color: #ffffff;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .modal-mask {
@@ -880,11 +905,19 @@ onShow(() => {
 .modal-done {
   margin-top: 28rpx;
   padding: 16rpx 48rpx;
+  min-height: 72rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-done-t {
   font-size: 28rpx;
   color: #ff5000;
   font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
 }
 </style>

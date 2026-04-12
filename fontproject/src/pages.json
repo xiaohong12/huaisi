@@ -91,6 +91,16 @@
 			}
 		},
 		{
+			"path": "pages/profile/order-list",
+			"style": {
+				"navigationBarTitleText": "我的订单",
+				"navigationBarBackgroundColor": "#f5f5f5",
+				"backgroundColor": "#f5f5f5",
+				"enablePullDownRefresh": true,
+				"backgroundTextStyle": "dark"
+			}
+		},
+		{
 			"path": "pages/profile/address-edit",
 			"style": {
 				"navigationBarTitleText": "新增地址",

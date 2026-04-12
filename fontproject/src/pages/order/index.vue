@@ -413,10 +413,13 @@ const sendMessage = () => {
   color: #3b82f6; /* 蓝色文字 */
   border-radius: 36rpx;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  text-align: center;
   font-size: 28rpx;
   font-weight: 500;
+  line-height: 1.2;
   transition: all 0.2s;
 }
 
