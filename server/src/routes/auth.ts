@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import type { RowDataPacket } from 'mysql2/promise';
 import { execute, queryOne } from '../db';
+import { requireAuth } from '../middleware/authMiddleware';
 import { successResponse } from '../utils/response';
 import config from '../config';
 
@@ -279,6 +280,14 @@ router.post('/wechat-mini-phone', async (req: Request<unknown, unknown, WechatPh
     const err = error as Error;
     successResponse(res, null, `获取手机号失败: ${err.message}`, 500, 500);
   }
+});
+
+/**
+ * 校验当前登录态是否有效：依赖 Authorization Bearer token，在 user_tokens 中校验未过期且未吊销。
+ * 供小程序冷启动/切前台时拉一次，过期则前端清理本地 token。
+ */
+router.get('/session', requireAuth, (req: Request, res: Response) => {
+  successResponse(res, { userId: req.userId as number }, '登录态有效');
 });
 
 export default router;

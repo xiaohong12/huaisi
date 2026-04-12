@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
+import { syncAuthSessionWithServer } from "@/utils/authSession";
 
 /**
  * 应用首次启动时触发，可用于初始化全局配置。
@@ -9,10 +10,11 @@ onLaunch(() => {
 });
 
 /**
- * 应用进入前台时触发。
+ * 应用进入前台时触发；若有 token 则向后端校验是否仍有效，过期则清理本地登录数据。
  */
 onShow(() => {
   console.log("App Show");
+  void syncAuthSessionWithServer();
 });
 
 /**

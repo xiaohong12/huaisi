@@ -1,4 +1,15 @@
 import type { ApiResponse, ApiError } from "@/types/api";
+import { clearLocalLoginState } from "@/utils/clearAuthStorage";
+
+/** 这些接口返回 401 时多为账号错误等业务原因，不应自动清空本地登录态 */
+const URL_SKIP_AUTO_CLEAR_ON_401 = ["/api/auth/login", "/api/auth/wechat-mini-login", "/api/auth/wechat-mini-phone"];
+
+/**
+ * 是否因鉴权失败而自动清理本地 token（避免登录接口误伤）。
+ */
+const shouldClearSessionOn401 = (relativeUrl: string): boolean => {
+  return !URL_SKIP_AUTO_CLEAR_ON_401.some((path) => relativeUrl.includes(path));
+};
 
 /**
  * 后端服务基础地址，所有请求均基于该地址拼接。
@@ -87,6 +98,13 @@ export const request = <T>(options: RequestOptions): Promise<ApiResponse<T>> => 
       header: { ...authHeader, ...jsonHeader, ...header },
       success: (res) => {
         const payload = res.data as ApiResponse<T>;
+        const status = res.statusCode ?? 200;
+        if (
+          shouldClearSessionOn401(url) &&
+          (status === 401 || payload?.code === 401)
+        ) {
+          clearLocalLoginState();
+        }
         resolve(payload);
       },
       fail: (err) => {

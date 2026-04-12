@@ -52,11 +52,11 @@
       </u-cell-group>
 
       <u-button
-        type="error"
+        :type="isLoggedIn ? 'error' : 'primary'"
         shape="circle"
-        text="退出登录"
+        :text="isLoggedIn ? '退出登录' : '去登录'"
         customStyle="height: 86rpx; margin-top: 36rpx; font-size: 30rpx; font-weight: 600;"
-        @click="handleLogout"
+        @click="handleAuthButton"
       />
     </view>
     <CustomTabBar />
@@ -69,6 +69,7 @@ import { onShow } from "@dcloudio/uni-app";
 import CustomTabBar from "@/components/CustomTabBar.vue";
 import { getMallOrderListApi } from "@/api/mallOrder";
 import { getMyFavoritePostsApi, getMyPublishedPostsApi } from "@/api/post";
+import { clearLocalLoginState } from "@/utils/clearAuthStorage";
 
 /**
  * 本地缓存中的用户数据结构。
@@ -107,6 +108,9 @@ const favoriteTotal = ref<number | null>(null);
 
 /** 已发布帖子总数；未登录或请求失败时显示占位 */
 const publishTotal = ref<number | null>(null);
+
+/** 是否已登录（与 token 一致；在 onShow 中刷新以适配从登录页返回） */
+const isLoggedIn = ref(!!uni.getStorageSync("token"));
 
 /**
  * 订单数量展示文案。
@@ -157,7 +161,7 @@ const goFavorites = () => {
  * 进入我的发布列表页。
  */
 const goMyPosts = () => {
-  uni.navigateTo({
+  uni.navigateTo({ 
     url: "/pages/profile/my-posts",
   });
 };
@@ -225,6 +229,7 @@ const refreshPublishCount = async () => {
 };
 
 onShow(() => {
+  isLoggedIn.value = !!uni.getStorageSync("token");
   refreshOrderCount();
   void refreshFavoriteCount();
   void refreshPublishCount();
@@ -264,6 +269,17 @@ const handleMenuClick = (item: { key: string; title: string; short: string; desc
 };
 
 /**
+ * 底部主按钮：未登录时跳转登录页；已登录时走退出流程。
+ */
+const handleAuthButton = () => {
+  if (!isLoggedIn.value) {
+    uni.navigateTo({ url: "/pages/login/index" });
+    return;
+  }
+  handleLogout();
+};
+
+/**
  * 退出登录：清理 token 与用户缓存，并跳转到登录页重新登录。
  */
 const handleLogout = () => {
@@ -272,8 +288,8 @@ const handleLogout = () => {
     content: "确认退出当前账号吗？",
     success: (res) => {
       if (!res.confirm) return;
-      uni.removeStorageSync("token");
-      uni.removeStorageSync("loginUser");
+      clearLocalLoginState();
+      isLoggedIn.value = false;
       uni.reLaunch({
         url: "/pages/login/index",
       });

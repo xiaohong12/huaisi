@@ -1,4 +1,5 @@
 import { BASE_URL, request } from "@/utils/request";
+import { clearLocalLoginState } from "@/utils/clearAuthStorage";
 import type { ApiError, ApiResponse } from "@/types/api";
 
 /**
@@ -94,6 +95,13 @@ export interface WechatPhoneData {
 }
 
 /**
+ * 登录态校验接口返回：当前 token 对应用户 ID。
+ */
+export interface AuthSessionData {
+  userId: number;
+}
+
+/**
  * 调用后端测试接口，获取服务基础信息。
  */
 export const getCommonTestApi = (): Promise<ApiResponse<CommonTestData>> => {
@@ -151,6 +159,10 @@ export const uploadImageApi = (filePath: string): Promise<ApiResponse<UploadImag
       header,
       success: (res) => {
         const data = JSON.parse(res.data) as ApiResponse<UploadImageData>;
+        const status = res.statusCode ?? 200;
+        if (status === 401 || data.code === 401) {
+          clearLocalLoginState();
+        }
         resolve(data);
       },
       fail: (err) => {
@@ -203,5 +215,15 @@ export const wechatMiniPhoneApi = (code: string): Promise<ApiResponse<WechatPhon
     url: "/api/auth/wechat-mini-phone",
     method: "POST",
     data: { code },
+  });
+};
+
+/**
+ * 校验当前本地 token 在服务端是否仍有效（未过期、未吊销）。
+ */
+export const validateAuthSessionApi = (): Promise<ApiResponse<AuthSessionData>> => {
+  return request<AuthSessionData>({
+    url: "/api/auth/session",
+    method: "GET",
   });
 };
