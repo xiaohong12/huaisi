@@ -72,9 +72,9 @@ const sectionTagStyle = (sectionName: string): { tagBg: string; tagColor: string
 };
 
 /**
- * 将接口帖子 DTO 转为 PostCard 所需结构。
+ * 将接口帖子 DTO 转为 PostCard 所需结构（首页流、收藏页等复用）。
  */
-const mapFeedItem = (item: PostFeedItemDTO): HomePostCard => {
+export function mapPostFeedItemToCard(item: PostFeedItemDTO): HomePostCard {
   const nick = item.nickname?.trim() || "用户";
   const letter = nick.slice(0, 1);
   const tag = item.sectionName?.trim() || "帖子";
@@ -98,7 +98,7 @@ const mapFeedItem = (item: PostFeedItemDTO): HomePostCard => {
     liked: item.liked ?? false,
     favorited: item.favorited ?? false,
   };
-};
+}
 
 /**
  * 从本地读取并解析首页缓存；结构或版本不对则返回 null。
@@ -172,7 +172,7 @@ export const useHomeFeedStore = defineStore("homeFeed", () => {
     try {
       const res = await getPostFeedApi(1, 20);
       const ok = res.code === 0 || res.code === 200;
-      const next = ok && res.data?.list ? res.data.list.map(mapFeedItem) : [];
+      const next = ok && res.data?.list ? res.data.list.map(mapPostFeedItemToCard) : [];
       if (ok && res.data?.list) {
         postList.value = next;
         lastFetchedAt.value = Date.now();
@@ -225,7 +225,7 @@ export const useHomeFeedStore = defineStore("homeFeed", () => {
   const updatePost = (dto: PostFeedItemDTO) => {
     const idx = postList.value.findIndex((p) => p.id === dto.id);
     if (idx >= 0) {
-      postList.value[idx] = mapFeedItem(dto);
+      postList.value[idx] = mapPostFeedItemToCard(dto);
       persistCache();
     }
   };

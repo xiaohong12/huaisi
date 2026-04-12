@@ -83,6 +83,31 @@ export const getPostFeedApi = (page = 1, pageSize = 20): Promise<ApiResponse<Pos
 };
 
 /**
+ * 当前用户收藏的帖子分页数据（与首页 list 项结构一致；需登录）。
+ */
+export interface PostFavoriteFeedData {
+  list: PostFeedItemDTO[];
+  page: number;
+  pageSize: number;
+  /** 收藏总数（含未在当前页的帖子） */
+  total: number;
+}
+
+/**
+ * 拉取当前登录用户收藏的已发布帖子（按收藏时间倒序）；未登录时接口返回 401。
+ */
+export const getMyFavoritePostsApi = (
+  page = 1,
+  pageSize = 20
+): Promise<ApiResponse<PostFavoriteFeedData>> => {
+  const q = `page=${encodeURIComponent(String(page))}&pageSize=${encodeURIComponent(String(pageSize))}`;
+  return request<PostFavoriteFeedData>({
+    url: `/api/posts/favorites?${q}`,
+    method: "GET",
+  });
+};
+
+/**
  * 切换点赞：已赞则取消。需登录；成功时 data 为与列表项一致的完整帖子对象，便于单条刷新。
  */
 export const togglePostLikeApi = (postId: number): Promise<ApiResponse<PostFeedItemDTO>> => {

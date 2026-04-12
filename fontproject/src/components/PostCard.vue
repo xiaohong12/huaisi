@@ -10,7 +10,7 @@
           <text>{{ post.tag }}</text>
         </view>
       </view>
-      <view class="more-dots" @click="onMoreClick">
+      <view v-if="!hideInteractions" class="more-dots" @click="onMoreClick">
         <view class="dot" />
         <view class="dot" />
         <view class="dot" />
@@ -66,7 +66,7 @@
       </view>
     </view>
 
-    <view class="action-bar">
+    <view v-if="!hideInteractions" class="action-bar">
       <view class="action-item" @click="openCommentComposer">
         <image class="action-ico" :src="iconMessage" mode="aspectFit" />
         <text class="action-num">{{ displayCommentCount }}</text>
@@ -99,7 +99,8 @@
         v-for="item in commentList"
         :key="item.id"
         class="comment-item"
-        @click.stop="openReplyComposer(item)"
+        :class="{ 'comment-item--readonly': hideInteractions }"
+        @click.stop="onCommentItemTap(item)"
       >
         <template v-if="item.parentId != null">
           <text class="comment-name">{{ displayName(item.userId, item.nickname) }}</text>
@@ -118,7 +119,14 @@
       <text class="comment-loading-text">评论加载中…</text>
     </view>
 
-    <view v-if="showComposer" class="composer-wrap">
+    <view
+      v-if="hideInteractions && commentsLoaded && !commentList.length && !commentsLoading"
+      class="comment-empty"
+    >
+      <text class="comment-empty-text">暂无评论</text>
+    </view>
+
+    <view v-if="!hideInteractions && showComposer" class="composer-wrap">
       <input
         class="composer-input"
         v-model.trim="commentDraft"
@@ -134,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, getCurrentInstance, nextTick, onMounted, ref, watch } from "vue";
+import { computed, getCurrentInstance, nextTick, onMounted, ref, watch, withDefaults } from "vue";
 import iconMessage from "@/static/image/message.png";
 import iconLike from "@/static/image/like.png";
 import iconLove from "@/static/image/love.png";
@@ -168,9 +176,14 @@ interface PostItem {
   favorited: boolean;
 }
 
-const props = defineProps<{
-  post: PostItem;
-}>();
+const props = withDefaults(
+  defineProps<{
+    post: PostItem;
+    /** 为 true 时不展示更多与互动底栏，评论只读展示（自动拉取，不可回复/发评，如收藏页） */
+    hideInteractions?: boolean;
+  }>(),
+  { hideInteractions: false }
+);
 
 /** 正文是否已展开（仅当前卡片） */
 const bodyExpanded = ref(false);
@@ -290,8 +303,11 @@ const composerPlaceholder = computed(() =>
   replyContext.value ? `回复${replyContext.value.placeholder}` : "说点什么..."
 );
 
+/**
+ * 帖子切换或只读模式切换时重置评论区；收藏页等只读场景下自动拉取评论（不可回复/发评）。
+ */
 watch(
-  () => props.post.id,
+  () => [props.post.id, props.hideInteractions] as const,
   () => {
     commentsLoaded.value = false;
     commentList.value = [];
@@ -299,7 +315,11 @@ watch(
     commentDraft.value = "";
     showComposer.value = false;
     inputFocus.value = false;
-  }
+    if (props.hideInteractions) {
+      void loadComments({ silentError: true });
+    }
+  },
+  { immediate: true }
 );
 
 /**
@@ -332,26 +352,42 @@ function replyTargetDisplay(item: PostCommentDTO): string {
 }
 
 /**
- * 首次打开评论区时拉取服务端评论。
+ * 拉取服务端评论；互动模式下失败会 toast；只读模式（如收藏列表）可 silentError 避免多条弹窗。
  */
-async function loadComments(): Promise<void> {
+async function loadComments(options?: { silentError?: boolean }): Promise<void> {
   if (commentsLoading.value) return;
   commentsLoading.value = true;
   try {
     const res = await getPostCommentsApi(props.post.id);
     const ok = res.code === 0 || res.code === 200;
-    if (ok && res.data?.list) {
+    if (ok && res.data?.list != null) {
       commentList.value = res.data.list;
       commentsLoaded.value = true;
     } else {
-      uni.showToast({ title: res.message || "加载评论失败", icon: "none" });
+      commentList.value = [];
+      commentsLoaded.value = false;
+      if (!options?.silentError) {
+        uni.showToast({ title: res.message || "加载评论失败", icon: "none" });
+      }
     }
   } catch {
-    uni.showToast({ title: "网络异常，评论加载失败", icon: "none" });
+    commentList.value = [];
+    commentsLoaded.value = false;
+    if (!options?.silentError) {
+      uni.showToast({ title: "网络异常，评论加载失败", icon: "none" });
+    }
   } finally {
     commentsLoading.value = false;
   }
 }
+
+/**
+ * 点击评论行：仅互动模式进入回复；只读模式不响应。
+ */
+const onCommentItemTap = (item: PostCommentDTO) => {
+  if (props.hideInteractions) return;
+  void openReplyComposer(item);
+};
 
 /**
  * 点击帖子右上角更多按钮，向父组件派发事件。
@@ -742,6 +778,20 @@ const onComposerBlur = () => {
 
 .comment-item:last-child {
   border-bottom: none;
+}
+
+.comment-item--readonly {
+  pointer-events: none;
+}
+
+.comment-empty {
+  margin-top: 16rpx;
+  padding: 16rpx 16rpx 4rpx;
+}
+
+.comment-empty-text {
+  font-size: 24rpx;
+  color: #94a3b8;
 }
 
 .comment-loading {

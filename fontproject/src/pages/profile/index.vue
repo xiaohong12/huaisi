@@ -22,8 +22,8 @@
           <text class="quick-label">订单</text>
         </view>
         <view class="quick-divider" />
-        <view class="quick-item">
-          <text class="quick-value">5</text>
+        <view class="quick-item" @click="goFavorites">
+          <text class="quick-value">{{ favoriteCountText }}</text>
           <text class="quick-label">收藏</text>
         </view>
         <view class="quick-divider" />
@@ -68,6 +68,7 @@ import { computed, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import CustomTabBar from "@/components/CustomTabBar.vue";
 import { getMallOrderListApi } from "@/api/mallOrder";
+import { getMyFavoritePostsApi } from "@/api/post";
 
 /**
  * 本地缓存中的用户数据结构。
@@ -101,6 +102,9 @@ const displayUser = computed(() => {
 /** 个人中心展示的订单数量；未登录或请求失败时显示占位 */
 const orderTotal = ref<number | null>(null);
 
+/** 帖子收藏总数；未登录或请求失败时显示占位 */
+const favoriteTotal = ref<number | null>(null);
+
 /**
  * 订单数量展示文案。
  */
@@ -111,11 +115,29 @@ const orderCountText = computed(() => {
 });
 
 /**
+ * 收藏数量展示文案。
+ */
+const favoriteCountText = computed(() => {
+  if (!uni.getStorageSync("token")) return "—";
+  if (favoriteTotal.value === null) return "…";
+  return String(favoriteTotal.value);
+});
+
+/**
  * 进入我的订单列表页。
  */
 const goOrderList = () => {
   uni.navigateTo({
     url: "/pages/profile/order-list",
+  });
+};
+
+/**
+ * 进入帖子收藏列表页。
+ */
+const goFavorites = () => {
+  uni.navigateTo({
+    url: "/pages/profile/favorites",
   });
 };
 
@@ -139,8 +161,30 @@ const refreshOrderCount = async () => {
   }
 };
 
+/**
+ * 拉取帖子收藏总数，用于快捷区数字展示。
+ */
+const refreshFavoriteCount = async () => {
+  if (!uni.getStorageSync("token")) {
+    favoriteTotal.value = null;
+    return;
+  }
+  try {
+    const res = await getMyFavoritePostsApi(1, 1);
+    const ok = res.code === 0 || res.code === 200;
+    if (ok && res.data && typeof res.data.total === "number") {
+      favoriteTotal.value = res.data.total;
+    } else {
+      favoriteTotal.value = 0;
+    }
+  } catch {
+    favoriteTotal.value = 0;
+  }
+};
+
 onShow(() => {
   refreshOrderCount();
+  void refreshFavoriteCount();
 });
 
 /**
