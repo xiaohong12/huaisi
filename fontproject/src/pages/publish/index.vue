@@ -132,7 +132,7 @@ import { onLoad } from "@dcloudio/uni-app";
 import { createPostApi, type PublishSectionKey } from "@/api/post";
 import { uploadImageApi } from "@/api/common";
 import { streamAiChat, type ChatMessage } from "@/api/ai";
-import { HOME_FEED_REFRESH_FLAG } from "@/constants/storageKeys";
+import { HOME_FEED_REFRESH_FLAG, MY_PUBLISHED_REFRESH_FLAG } from "@/constants/storageKeys";
 
 /** 上传列表项（与 u-upload fileList 结构兼容） */
 interface UploadFileItem {
@@ -426,6 +426,7 @@ const onPublish = async () => {
       duration: 1600,
       complete: () => {
         uni.setStorageSync(HOME_FEED_REFRESH_FLAG, true);
+        uni.setStorageSync(MY_PUBLISHED_REFRESH_FLAG, true);
         uni.navigateBack();
       },
     });

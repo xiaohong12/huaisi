@@ -20,13 +20,20 @@
         </template>
         <template v-else-if="needLogin">
           <view class="feed-empty">
-            <text class="feed-empty-text">登录后即可查看收藏的帖子</text>
+            <text class="feed-empty-text">登录后即可查看已发布的帖子</text>
           </view>
         </template>
         <template v-else>
-          <PostCard v-for="post in postList" :key="post.id" :post="post" hide-interactions />
+          <PostCard
+            v-for="post in postList"
+            :key="post.id"
+            :post="post"
+            @more="onMore"
+            @update-post="onUpdatePost"
+            @update-comment-count="onUpdateCommentCount"
+          />
           <view v-if="!postList.length" class="feed-empty">
-            <text class="feed-empty-text">暂无收藏，在首页帖子卡片上点心形即可收藏</text>
+            <text class="feed-empty-text">暂无发布记录，去「发布」页发帖试试吧</text>
           </view>
         </template>
       </view>
@@ -39,7 +46,8 @@
 import { ref } from "vue";
 import { onPullDownRefresh, onShow } from "@dcloudio/uni-app";
 import PostCard from "@/components/PostCard.vue";
-import { getMyFavoritePostsApi } from "@/api/post";
+import { getMyPublishedPostsApi, type PostFeedItemDTO } from "@/api/post";
+import { MY_PUBLISHED_REFRESH_FLAG } from "@/constants/storageKeys";
 import { mapPostFeedItemToCard, type HomePostCard } from "@/utils/postFeedMap";
 
 const postList = ref<HomePostCard[]>([]);
@@ -47,9 +55,9 @@ const loading = ref(true);
 const needLogin = ref(false);
 
 /**
- * 拉取当前用户收藏帖子列表；未登录时标记 needLogin，不发起请求。
+ * 拉取当前用户已发布帖子；未登录时不请求。
  */
-const loadFavorites = async () => {
+const loadMyPosts = async () => {
   if (!uni.getStorageSync("token")) {
     needLogin.value = true;
     loading.value = false;
@@ -59,7 +67,7 @@ const loadFavorites = async () => {
   needLogin.value = false;
   loading.value = true;
   try {
-    const res = await getMyFavoritePostsApi(1, 50);
+    const res = await getMyPublishedPostsApi(1, 50);
     const ok = res.code === 0 || res.code === 200;
     if (ok && res.data?.list) {
       postList.value = res.data.list.map(mapPostFeedItemToCard);
@@ -78,12 +86,43 @@ const loadFavorites = async () => {
   }
 };
 
+/**
+ * 帖子右上角更多（与首页一致，占位）。
+ */
+const onMore = (_id: number) => {
+  uni.showToast({ title: "更多操作待接入", icon: "none" });
+};
+
+/**
+ * 点赞/收藏后替换列表项。
+ */
+const onUpdatePost = (dto: PostFeedItemDTO) => {
+  const idx = postList.value.findIndex((p) => p.id === dto.id);
+  if (idx >= 0) {
+    postList.value[idx] = mapPostFeedItemToCard(dto);
+  }
+};
+
+/**
+ * 发表评论后同步该帖评论数。
+ */
+const onUpdateCommentCount = (p: { postId: number; commentCount: number }) => {
+  const idx = postList.value.findIndex((x) => x.id === p.postId);
+  if (idx >= 0) {
+    const cur = postList.value[idx];
+    postList.value[idx] = { ...cur, comments: p.commentCount };
+  }
+};
+
 onShow(() => {
-  void loadFavorites();
+  if (uni.getStorageSync(MY_PUBLISHED_REFRESH_FLAG)) {
+    uni.removeStorageSync(MY_PUBLISHED_REFRESH_FLAG);
+  }
+  void loadMyPosts();
 });
 
 onPullDownRefresh(() => {
-  void loadFavorites().finally(() => {
+  void loadMyPosts().finally(() => {
     uni.stopPullDownRefresh();
   });
 });
@@ -134,7 +173,6 @@ onPullDownRefresh(() => {
   height: 48rpx;
 }
 
-/* 与首页一致的骨架占位 */
 .skeleton-card {
   background: #ffffff;
   border-radius: 24rpx;

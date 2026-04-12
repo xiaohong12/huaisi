@@ -111,6 +111,16 @@
 			}
 		},
 		{
+			"path": "pages/profile/my-posts",
+			"style": {
+				"navigationBarTitleText": "我的发布",
+				"navigationBarBackgroundColor": "#f5f5f5",
+				"backgroundColor": "#f5f5f5",
+				"enablePullDownRefresh": true,
+				"backgroundTextStyle": "dark"
+			}
+		},
+		{
 			"path": "pages/profile/address-edit",
 			"style": {
 				"navigationBarTitleText": "新增地址",

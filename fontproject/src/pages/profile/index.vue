@@ -27,8 +27,8 @@
           <text class="quick-label">收藏</text>
         </view>
         <view class="quick-divider" />
-        <view class="quick-item">
-          <text class="quick-value">3</text>
+        <view class="quick-item" @click="goMyPosts">
+          <text class="quick-value">{{ publishCountText }}</text>
           <text class="quick-label">发布</text>
         </view>
       </view>
@@ -68,7 +68,7 @@ import { computed, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import CustomTabBar from "@/components/CustomTabBar.vue";
 import { getMallOrderListApi } from "@/api/mallOrder";
-import { getMyFavoritePostsApi } from "@/api/post";
+import { getMyFavoritePostsApi, getMyPublishedPostsApi } from "@/api/post";
 
 /**
  * 本地缓存中的用户数据结构。
@@ -105,6 +105,9 @@ const orderTotal = ref<number | null>(null);
 /** 帖子收藏总数；未登录或请求失败时显示占位 */
 const favoriteTotal = ref<number | null>(null);
 
+/** 已发布帖子总数；未登录或请求失败时显示占位 */
+const publishTotal = ref<number | null>(null);
+
 /**
  * 订单数量展示文案。
  */
@@ -124,6 +127,15 @@ const favoriteCountText = computed(() => {
 });
 
 /**
+ * 已发布帖子数量展示文案。
+ */
+const publishCountText = computed(() => {
+  if (!uni.getStorageSync("token")) return "—";
+  if (publishTotal.value === null) return "…";
+  return String(publishTotal.value);
+});
+
+/**
  * 进入我的订单列表页。
  */
 const goOrderList = () => {
@@ -138,6 +150,15 @@ const goOrderList = () => {
 const goFavorites = () => {
   uni.navigateTo({
     url: "/pages/profile/favorites",
+  });
+};
+
+/**
+ * 进入我的发布列表页。
+ */
+const goMyPosts = () => {
+  uni.navigateTo({
+    url: "/pages/profile/my-posts",
   });
 };
 
@@ -182,9 +203,31 @@ const refreshFavoriteCount = async () => {
   }
 };
 
+/**
+ * 拉取已发布帖子总数，用于快捷区数字展示。
+ */
+const refreshPublishCount = async () => {
+  if (!uni.getStorageSync("token")) {
+    publishTotal.value = null;
+    return;
+  }
+  try {
+    const res = await getMyPublishedPostsApi(1, 1);
+    const ok = res.code === 0 || res.code === 200;
+    if (ok && res.data && typeof res.data.total === "number") {
+      publishTotal.value = res.data.total;
+    } else {
+      publishTotal.value = 0;
+    }
+  } catch {
+    publishTotal.value = 0;
+  }
+};
+
 onShow(() => {
   refreshOrderCount();
   void refreshFavoriteCount();
+  void refreshPublishCount();
 });
 
 /**

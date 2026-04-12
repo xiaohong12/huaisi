@@ -366,6 +366,66 @@ async function listMyFavoritePostsHandler(req: Request, res: Response): Promise<
 }
 
 /**
+ * GET /api/posts/mine
+ * 当前登录用户自己发布的已上架帖子（按发帖时间倒序），单条结构与首页信息流一致，供「我的发布」页展示与互动。
+ */
+async function listMyPublishedPostsHandler(req: Request, res: Response): Promise<void> {
+  const userId = req.userId;
+  if (userId == null) {
+    successResponse(res, null, "请先登录", 401, 401);
+    return;
+  }
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    const pageSizeRaw = Math.min(50, Math.max(1, parseInt(String(req.query.pageSize ?? "20"), 10) || 20));
+    const offsetRaw = (page - 1) * pageSizeRaw;
+    const limitN = Math.floor(pageSizeRaw);
+    const offsetN = Math.floor(offsetRaw);
+
+    const countRow = await queryOne<RowDataPacket & { c: number }>(
+      `SELECT COUNT(*) AS c FROM posts WHERE user_id = ? AND status = 1`,
+      [userId]
+    );
+    const total = countRow && typeof countRow.c === "number" ? countRow.c : 0;
+
+    const rows = await query<PostFeedRow[]>(
+      `SELECT p.id, p.title, p.content, p.excerpt, p.comment_count, p.like_count, p.favorite_count,
+              u.nickname, u.avatar, sec.name AS section_name
+       FROM posts p
+       INNER JOIN users u ON u.id = p.user_id
+       LEFT JOIN sections sec ON sec.id = p.section_id
+       WHERE p.user_id = ? AND p.status = 1
+       ORDER BY p.created_at DESC
+       LIMIT ${limitN} OFFSET ${offsetN}`,
+      [userId]
+    );
+
+    const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
+    const imageMap = await buildImageMapForIds(ids);
+    const base64Map = await resolveImageMapToBase64(imageMap);
+
+    let likedSet = new Set<number>();
+    let favoritedSet = new Set<number>();
+    if (ids.length > 0) {
+      const sets = await loadLikedAndFavoritedSets(userId, ids);
+      likedSet = sets.liked;
+      favoritedSet = sets.favorited;
+    }
+
+    const list: PostFeedItemJson[] = rows.map((r) => {
+      const pid = Number(r.id);
+      return toFeedItemJson(r, base64Map.get(pid) ?? [], likedSet.has(pid), favoritedSet.has(pid));
+    });
+
+    successResponse(res, { list, page, pageSize: limitN, total }, "获取我的发布列表成功");
+  } catch (error) {
+    const err = error as Error;
+    console.error("[posts] GET /api/posts/mine 失败:", err.message, error);
+    successResponse(res, null, `获取我的发布列表失败: ${err.message}`, 500, 500);
+  }
+}
+
+/**
  * 创建帖子（发布）核心逻辑：写入 posts 与 post_images，版块由 sectionKey 映射 sections.id。
  * 挂载路径：
  * - POST /api/posts
@@ -731,6 +791,7 @@ router.get("/", optionalAuth, listFeedHandler);
 router.post("/", requireAuth, createPostHandler);
 router.post("/publish", requireAuth, createPostHandler);
 router.get("/favorites", requireAuth, listMyFavoritePostsHandler);
+router.get("/mine", requireAuth, listMyPublishedPostsHandler);
 router.get("/:postId/comments", listPostCommentsHandler);
 router.post("/:postId/comments", requireAuth, createPostCommentHandler);
 router.post("/:postId/like", requireAuth, togglePostLikeHandler);

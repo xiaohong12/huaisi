@@ -108,6 +108,25 @@ export const getMyFavoritePostsApi = (
 };
 
 /**
+ * 当前用户自己发布的帖子分页（与收藏列表字段一致；需登录）。
+ */
+export type MyPublishedPostsData = PostFavoriteFeedData;
+
+/**
+ * 拉取当前登录用户已发布的帖子（按发帖时间倒序）；未登录时接口返回 401。
+ */
+export const getMyPublishedPostsApi = (
+  page = 1,
+  pageSize = 20
+): Promise<ApiResponse<MyPublishedPostsData>> => {
+  const q = `page=${encodeURIComponent(String(page))}&pageSize=${encodeURIComponent(String(pageSize))}`;
+  return request<MyPublishedPostsData>({
+    url: `/api/posts/mine?${q}`,
+    method: "GET",
+  });
+};
+
+/**
  * 切换点赞：已赞则取消。需登录；成功时 data 为与列表项一致的完整帖子对象，便于单条刷新。
  */
 export const togglePostLikeApi = (postId: number): Promise<ApiResponse<PostFeedItemDTO>> => {
