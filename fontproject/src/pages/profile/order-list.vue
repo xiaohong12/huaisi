@@ -69,6 +69,7 @@
             />
             <view class="goods-mid">
               <text class="goods-title">{{ displayGoodsTitle(item) }}</text>
+              <text class="goods-qty">共 {{ item.totalQuantity ?? 0 }} 件</text>
               <text class="goods-time">{{ formatTime(item.createdAt) }}</text>
             </view>
             <view class="goods-right">
@@ -467,8 +468,15 @@ onPullDownRefresh(() => {
   line-height: 1.4;
 }
 
+.goods-qty {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #64748b;
+}
+
 .goods-time {
-  margin-top: 12rpx;
+  margin-top: 8rpx;
   font-size: 22rpx;
   color: #94a3b8;
 }

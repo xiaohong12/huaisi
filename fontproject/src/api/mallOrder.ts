@@ -57,6 +57,8 @@ export interface MallOrderListItem {
   firstTitle: string;
   firstCover: string;
   itemCount: number;
+  /** 订单内所有商品购买件数合计 */
+  totalQuantity: number;
   createdAt: string;
 }
 

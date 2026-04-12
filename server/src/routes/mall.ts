@@ -767,7 +767,7 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
 
 /**
  * GET /api/mall/orders
- * 分页查询当前登录用户的商城订单列表；每条带首件商品标题/封面与商品行数，供小程序「我的订单」列表展示。
+ * 分页查询当前登录用户的商城订单列表；每条带首件商品标题/封面、明细行数、购买总件数（totalQuantity），供小程序「我的订单」列表展示。
  * 查询参数：page（默认 1）、pageSize（默认 10，最大 50）；paymentStatus 可选，0=仅待支付、1=仅已支付，不传则不分状态（个人中心订单总数等场景）。
  */
 router.get("/orders", requireAuth, async (req: Request, res: Response) => {
@@ -820,6 +820,8 @@ router.get("/orders", requireAuth, async (req: Request, res: Response) => {
       first_title: string | null;
       first_cover: string | null;
       item_count: number;
+      /** 该订单所有明细购买件数之和，供列表展示「共 x 件」 */
+      total_quantity: number;
     }
 
     const listSql =
@@ -827,7 +829,8 @@ router.get("/orders", requireAuth, async (req: Request, res: Response) => {
         ? `SELECT o.id, o.order_no, o.store_name, o.total_amount, o.payment_status, o.created_at,
               (SELECT i.title FROM mall_order_items i WHERE i.order_id = o.id ORDER BY i.id ASC LIMIT 1) AS first_title,
               (SELECT i.cover_url FROM mall_order_items i WHERE i.order_id = o.id ORDER BY i.id ASC LIMIT 1) AS first_cover,
-              (SELECT COUNT(*) FROM mall_order_items i WHERE i.order_id = o.id) AS item_count
+              (SELECT COUNT(*) FROM mall_order_items i WHERE i.order_id = o.id) AS item_count,
+              (SELECT COALESCE(SUM(i.quantity), 0) FROM mall_order_items i WHERE i.order_id = o.id) AS total_quantity
        FROM mall_orders o
        WHERE o.user_id = ?
        ORDER BY o.id DESC
@@ -835,7 +838,8 @@ router.get("/orders", requireAuth, async (req: Request, res: Response) => {
         : `SELECT o.id, o.order_no, o.store_name, o.total_amount, o.payment_status, o.created_at,
               (SELECT i.title FROM mall_order_items i WHERE i.order_id = o.id ORDER BY i.id ASC LIMIT 1) AS first_title,
               (SELECT i.cover_url FROM mall_order_items i WHERE i.order_id = o.id ORDER BY i.id ASC LIMIT 1) AS first_cover,
-              (SELECT COUNT(*) FROM mall_order_items i WHERE i.order_id = o.id) AS item_count
+              (SELECT COUNT(*) FROM mall_order_items i WHERE i.order_id = o.id) AS item_count,
+              (SELECT COALESCE(SUM(i.quantity), 0) FROM mall_order_items i WHERE i.order_id = o.id) AS total_quantity
        FROM mall_orders o
        WHERE o.user_id = ? AND o.payment_status = ?
        ORDER BY o.id DESC
@@ -858,6 +862,7 @@ router.get("/orders", requireAuth, async (req: Request, res: Response) => {
           firstTitle: r.first_title ?? "",
           firstCover: r.first_cover ?? "",
           itemCount: Number(r.item_count) || 0,
+          totalQuantity: Number(r.total_quantity) || 0,
         })),
         total,
         page,
