@@ -262,6 +262,12 @@ const handleMenuClick = (item: { key: string; title: string; short: string; desc
     });
     return;
   }
+  if (item.key === "security") {
+    uni.navigateTo({
+      url: "/pages/profile/security",
+    });
+    return;
+  }
   uni.showToast({
     title: `${item.title}功能开发中`,
     icon: "none",

@@ -129,6 +129,22 @@
 			}
 		},
 		{
+			"path": "pages/profile/security",
+			"style": {
+				"navigationBarTitleText": "账号与安全",
+				"navigationBarBackgroundColor": "#f5f5f5",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/profile/change-password",
+			"style": {
+				"navigationBarTitleText": "修改密码",
+				"navigationBarBackgroundColor": "#f5f5f5",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
 			"path": "pages/publish/index",
 			"style": {
 				"navigationBarTitleText": "发布",

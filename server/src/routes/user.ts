@@ -1,11 +1,18 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
+import bcrypt from "bcryptjs";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { execute, query, queryOne } from "../db";
 import { requireAuth } from "../middleware/authMiddleware";
 import { successResponse, errorResponse } from "../utils/response";
 
 const router = Router();
+
+/** 用户密码行（仅用于修改密码时校验与更新） */
+interface UserPasswordRow extends RowDataPacket {
+  id: number;
+  password: string;
+}
 
 /** 地址表行（与 user_addresses 一致） */
 interface UserAddressRow extends RowDataPacket {
@@ -248,6 +255,67 @@ router.delete("/addresses/:id", requireAuth, async (req: Request, res: Response)
   } catch (e) {
     console.error("[user] address delete", e);
     errorResponse(res, "删除失败", 500);
+  }
+});
+
+/**
+ * 新密码强度校验：与手机号登录页一致，至少 8 位且同时含大写、小写字母。
+ */
+function isStrongPassword(value: string): boolean {
+  if (!value || value.length < 8) return false;
+  return /[a-z]/.test(value) && /[A-Z]/.test(value);
+}
+
+/**
+ * PUT /api/user/password
+ * 已登录用户修改登录密码：校验原密码后更新哈希，并吊销该用户全部 token，需重新登录。
+ */
+router.put("/password", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = normalizeUserId(req);
+    if (!userId) {
+      errorResponse(res, "请先登录", 401);
+      return;
+    }
+    const body = req.body as Record<string, unknown>;
+    const oldPassword = typeof body.oldPassword === "string" ? body.oldPassword : "";
+    const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
+    if (!oldPassword || !newPassword) {
+      errorResponse(res, "请填写原密码和新密码", 400);
+      return;
+    }
+    if (!isStrongPassword(newPassword)) {
+      errorResponse(res, "新密码至少 8 位，且需同时包含大写字母和小写字母", 400);
+      return;
+    }
+    if (oldPassword === newPassword) {
+      errorResponse(res, "新密码不能与当前密码相同", 400);
+      return;
+    }
+
+    const row = await queryOne<UserPasswordRow>(
+      "SELECT id, password FROM users WHERE id = ? LIMIT 1",
+      [userId]
+    );
+    if (!row) {
+      errorResponse(res, "用户不存在", 404);
+      return;
+    }
+
+    const match = await bcrypt.compare(oldPassword, row.password);
+    if (!match) {
+      errorResponse(res, "原密码错误", 400);
+      return;
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await execute("UPDATE users SET password = ? WHERE id = ?", [hash, userId]);
+    await execute("UPDATE user_tokens SET is_revoked = 1 WHERE user_id = ?", [userId]);
+
+    successResponse(res, { ok: true }, "密码已修改，请重新登录");
+  } catch (e) {
+    console.error("[user] password change", e);
+    errorResponse(res, "修改密码失败", 500);
   }
 });
 
