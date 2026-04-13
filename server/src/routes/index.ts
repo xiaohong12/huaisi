@@ -6,6 +6,7 @@ import postsRouter from './posts';
 import mallRouter from './mall';
 import aiRouter from './ai';
 import userRouter from './user';
+import adminAuthRouter from './adminAuth';
 
 const router = Router();
 
@@ -19,5 +20,9 @@ router.use('/posts', postsRouter);
 router.use('/mall', mallRouter);
 router.use('/user', userRouter);
 router.use('/ai', aiRouter);
+/**
+ * 管理后台鉴权相关：与 /api/auth（C 端用户）隔离，token 仅存 admin_tokens。
+ */
+router.use('/admin/auth', adminAuthRouter);
 
 export default router;

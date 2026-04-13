@@ -10,7 +10,7 @@ interface TokenRow extends RowDataPacket {
 /**
  * 从 Authorization: Bearer &lt;token&gt; 或 X-Token 头解析登录凭证。
  */
-function extractToken(req: Request): string {
+export function extractToken(req: Request): string {
   const auth = req.headers.authorization;
   if (typeof auth === "string" && auth.startsWith("Bearer ")) {
     return auth.slice(7).trim();
