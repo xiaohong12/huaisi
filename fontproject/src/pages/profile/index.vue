@@ -69,6 +69,7 @@ import CustomTabBar from "@/components/CustomTabBar.vue";
 import { getMallOrderListApi } from "@/api/mallOrder";
 import { getMyFavoritePostsApi, getMyPublishedPostsApi } from "@/api/post";
 import { getUserProfileApi } from "@/api/userProfile";
+import { useProfileQuickStatsStore } from "@/stores/profileQuickStats";
 import { clearLocalLoginState } from "@/utils/clearAuthStorage";
 import { resolveAssetUrl } from "@/utils/request";
 
@@ -136,14 +137,8 @@ const refreshUserProfileFromServer = async () => {
   }
 };
 
-/** 个人中心展示的订单数量；未登录或请求失败时显示占位 */
-const orderTotal = ref<number | null>(null);
-
-/** 帖子收藏总数；未登录或请求失败时显示占位 */
-const favoriteTotal = ref<number | null>(null);
-
-/** 已发布帖子总数；未登录或请求失败时显示占位 */
-const publishTotal = ref<number | null>(null);
+/** 个人中心快捷数字：Pinia + uni.storage 本地缓存（按用户 id 隔离） */
+const quickStats = useProfileQuickStatsStore();
 
 /** 是否已登录（与 token 一致；在 onShow 中刷新以适配从登录页返回） */
 const isLoggedIn = ref(!!uni.getStorageSync("token"));
@@ -153,8 +148,8 @@ const isLoggedIn = ref(!!uni.getStorageSync("token"));
  */
 const orderCountText = computed(() => {
   if (!uni.getStorageSync("token")) return "—";
-  if (orderTotal.value === null) return "…";
-  return String(orderTotal.value);
+  if (quickStats.orderTotal === null) return "…";
+  return String(quickStats.orderTotal);
 });
 
 /**
@@ -162,8 +157,8 @@ const orderCountText = computed(() => {
  */
 const favoriteCountText = computed(() => {
   if (!uni.getStorageSync("token")) return "—";
-  if (favoriteTotal.value === null) return "…";
-  return String(favoriteTotal.value);
+  if (quickStats.favoriteTotal === null) return "…";
+  return String(quickStats.favoriteTotal);
 });
 
 /**
@@ -171,8 +166,8 @@ const favoriteCountText = computed(() => {
  */
 const publishCountText = computed(() => {
   if (!uni.getStorageSync("token")) return "—";
-  if (publishTotal.value === null) return "…";
-  return String(publishTotal.value);
+  if (quickStats.publishTotal === null) return "…";
+  return String(quickStats.publishTotal);
 });
 
 /**
@@ -203,64 +198,75 @@ const goMyPosts = () => {
 };
 
 /**
- * 已登录时拉取订单总数，用于快捷区数字展示。
+ * 当前登录用户 id（用于与快捷数字本地缓存绑定）。
+ */
+const currentUserId = (): number | undefined => {
+  const u = uni.getStorageSync("loginUser") as LoginUser | undefined;
+  const id = u?.id;
+  return typeof id === "number" && Number.isFinite(id) ? id : undefined;
+};
+
+/**
+ * 已登录时拉取订单总数，写入 Pinia 并持久化到本地。
  */
 const refreshOrderCount = async () => {
   if (!uni.getStorageSync("token")) {
-    orderTotal.value = null;
+    quickStats.setOrderTotal(null);
     return;
   }
+  const uid = currentUserId();
   try {
     const res = await getMallOrderListApi({ page: 1, pageSize: 1 });
-    if (res.code === 0 && res.data) {
-      orderTotal.value = res.data.total;
-    } else {
-      orderTotal.value = 0;
-    }
+    const n = res.code === 0 && res.data ? res.data.total : 0;
+    quickStats.setOrderTotal(n);
+    if (uid != null) quickStats.persistField(uid, "order", n);
   } catch {
-    orderTotal.value = 0;
+    quickStats.setOrderTotal(0);
+    if (uid != null) quickStats.persistField(uid, "order", 0);
   }
 };
 
 /**
- * 拉取帖子收藏总数，用于快捷区数字展示。
+ * 拉取帖子收藏总数，写入 Pinia 并持久化到本地。
  */
 const refreshFavoriteCount = async () => {
   if (!uni.getStorageSync("token")) {
-    favoriteTotal.value = null;
+    quickStats.setFavoriteTotal(null);
     return;
   }
+  const uid = currentUserId();
   try {
     const res = await getMyFavoritePostsApi(1, 1);
     const ok = res.code === 0 || res.code === 200;
-    if (ok && res.data && typeof res.data.total === "number") {
-      favoriteTotal.value = res.data.total;
-    } else {
-      favoriteTotal.value = 0;
-    }
+    const n =
+      ok && res.data && typeof res.data.total === "number" ? res.data.total : 0;
+    quickStats.setFavoriteTotal(n);
+    if (uid != null) quickStats.persistField(uid, "favorite", n);
   } catch {
-    favoriteTotal.value = 0;
+    quickStats.setFavoriteTotal(0);
+    if (uid != null) quickStats.persistField(uid, "favorite", 0);
   }
 };
 
 /**
- * 拉取已发布帖子总数，用于快捷区数字展示。
+ * 拉取已发布帖子总数，写入 Pinia 并持久化到本地。
  */
 const refreshPublishCount = async () => {
   if (!uni.getStorageSync("token")) {
-    publishTotal.value = null;
+    quickStats.setPublishTotal(null);
     return;
   }
+  const uid = currentUserId();
   try {
     const res = await getMyPublishedPostsApi(1, 1);
     const ok = res.code === 0 || res.code === 200;
-    if (ok && res.data && typeof res.data.total === "number") {
-      publishTotal.value = res.data.total;
-    } else {
-      publishTotal.value = 0;
-    }
+    const n =
+      ok && res.data && typeof res.data.total === "number" ? res.data.total : 0;
+    quickStats.setPublishTotal(n);
+    if (uid != null) quickStats.persistField(uid, "publish", n);
   } catch {
-    publishTotal.value = 0;
+    quickStats.setPublishTotal(0);
+    if (uid != null) quickStats.persistField(uid, "publish", 0);
   }
 };
 
@@ -268,12 +274,15 @@ onShow(() => {
   isLoggedIn.value = !!uni.getStorageSync("token");
   if (!isLoggedIn.value) {
     applyLoginUserToDisplay(undefined);
-    orderTotal.value = null;
-    favoriteTotal.value = null;
-    publishTotal.value = null;
+    quickStats.clearAll();
     return;
   }
-  applyLoginUserToDisplay(uni.getStorageSync("loginUser") as LoginUser | undefined);
+  const cacheUser = uni.getStorageSync("loginUser") as LoginUser | undefined;
+  applyLoginUserToDisplay(cacheUser);
+  const uid = currentUserId();
+  if (uid != null) {
+    quickStats.restoreFromLocal(uid);
+  }
   void refreshUserProfileFromServer();
   refreshOrderCount();
   void refreshFavoriteCount();
