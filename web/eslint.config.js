@@ -26,4 +26,11 @@ export default defineConfig([
       ],
     },
   },
+  /* shadcn/ui 常同时导出 Button 与 buttonVariants */
+  {
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

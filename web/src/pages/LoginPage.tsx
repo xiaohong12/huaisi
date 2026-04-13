@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { useForm, type SubmitHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { getAdminToken } from '../auth/adminToken'
+import { Button } from '@/components/ui/button'
 import { getApiBase } from '../config'
 import { loginFormSchema, type LoginFormValues } from '../schemas/login'
 import '../App.css'
@@ -199,9 +200,13 @@ export function LoginPage() {
               <span>在此设备上记住登录状态</span>
             </label>
 
-            <button type="submit" className="login-form__submit" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="mt-2 h-11 w-full rounded-none text-base font-bold"
+            >
               {isSubmitting ? '提交中…' : '进入后台'}
-            </button>
+            </Button>
           </form>
         </div>
       </div>

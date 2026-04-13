@@ -1,5 +1,15 @@
 # React + TypeScript + Vite
 
+本目录已集成 [shadcn/ui](https://ui.shadcn.com/)（Tailwind v4 + Radix Nova 预设）。新增组件：
+
+```bash
+cd web && npx shadcn@latest add dialog input table
+```
+
+配置见根目录 `components.json`，样式与主题变量在 `src/index.css`（与现有青绿主色 `--primary` / `--ring` 已对齐）。
+
+---
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
