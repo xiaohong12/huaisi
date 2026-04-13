@@ -24,7 +24,13 @@
           </view>
         </template>
         <template v-else>
-          <PostCard v-for="post in postList" :key="post.id" :post="post" hide-interactions />
+          <PostCard
+            v-for="post in postList"
+            :key="post.id"
+            :post="post"
+            hide-interactions
+            :show-comments="false"
+          />
           <view v-if="!postList.length" class="feed-empty">
             <text class="feed-empty-text">暂无收藏，在首页帖子卡片上点心形即可收藏</text>
           </view>

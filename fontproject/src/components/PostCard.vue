@@ -94,7 +94,7 @@
       </view>
     </view>
 
-    <view v-if="commentsLoaded && commentList.length" class="comment-list">
+    <view v-if="props.showComments && commentsLoaded && commentList.length" class="comment-list">
       <view
         v-for="item in commentList"
         :key="item.id"
@@ -115,12 +115,12 @@
         <text class="comment-content">{{ item.content }}</text>
       </view>
     </view>
-    <view v-if="commentsLoading" class="comment-loading">
+    <view v-if="props.showComments && commentsLoading" class="comment-loading">
       <text class="comment-loading-text">评论加载中…</text>
     </view>
 
     <view
-      v-if="hideInteractions && commentsLoaded && !commentList.length && !commentsLoading"
+      v-if="props.showComments && hideInteractions && commentsLoaded && !commentList.length && !commentsLoading"
       class="comment-empty"
     >
       <text class="comment-empty-text">暂无评论</text>
@@ -181,8 +181,10 @@ const props = withDefaults(
     post: PostItem;
     /** 为 true 时不展示更多与互动底栏，评论只读展示（自动拉取，不可回复/发评，如收藏页） */
     hideInteractions?: boolean;
+    /** 为 false 时不展示评论列表/回复内容，仅展示帖子主体。 */
+    showComments?: boolean;
   }>(),
-  { hideInteractions: false }
+  { hideInteractions: false, showComments: true }
 );
 
 /** 正文是否已展开（仅当前卡片） */
@@ -307,7 +309,7 @@ const composerPlaceholder = computed(() =>
  * 帖子切换或只读模式切换时重置评论区；收藏页等只读场景下自动拉取评论（不可回复/发评）。
  */
 watch(
-  () => [props.post.id, props.hideInteractions] as const,
+  () => [props.post.id, props.hideInteractions, props.showComments] as const,
   () => {
     commentsLoaded.value = false;
     commentList.value = [];
@@ -315,7 +317,7 @@ watch(
     commentDraft.value = "";
     showComposer.value = false;
     inputFocus.value = false;
-    if (props.hideInteractions) {
+    if (props.hideInteractions && props.showComments) {
       void loadComments({ silentError: true });
     }
   },
@@ -385,7 +387,7 @@ async function loadComments(options?: { silentError?: boolean }): Promise<void> 
  * 点击评论行：仅互动模式进入回复；只读模式不响应。
  */
 const onCommentItemTap = (item: PostCommentDTO) => {
-  if (props.hideInteractions) return;
+  if (props.hideInteractions || !props.showComments) return;
   void openReplyComposer(item);
 };
 
@@ -444,6 +446,7 @@ const onToggleFavorite = async () => {
  * 打开评论输入框：先拉取评论列表，再唤起键盘发新评论（非回复）。
  */
 const openCommentComposer = async () => {
+  if (!props.showComments) return;
   replyContext.value = null;
   if (!commentsLoaded.value) {
     await loadComments();
@@ -456,6 +459,7 @@ const openCommentComposer = async () => {
  * 点击某条评论：回复该条（楼中楼 parentId 指向被点的评论 id）。
  */
 const openReplyComposer = async (item: PostCommentDTO) => {
+  if (!props.showComments) return;
   if (!commentsLoaded.value) {
     await loadComments();
   }
