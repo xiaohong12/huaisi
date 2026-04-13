@@ -23,9 +23,9 @@
   inset: 0;
   background: linear-gradient(
     135deg,
-    rgba(28, 105, 212, 0.12) 0%,
+    var(--color-accent-glow-a) 0%,
     transparent 45%,
-    rgba(6, 83, 182, 0.08) 100%
+    var(--color-accent-glow-b) 100%
   );
   pointer-events: none;
 }

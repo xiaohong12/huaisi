@@ -1,13 +1,12 @@
 /**
- * Web 管理端全局样式 — 对齐项目 DESIGN.md（BMW 风格设计系统）
- * BMWTypeNext 为品牌专用字库，此处使用文档中的西文/日文回退栈。
+ * Web 管理端全局样式 — 深色壳 + 浅色内容区；主色为青绿（Teal），强调色仅用于交互与焦点。
  */
 
 :root {
-  /* 设计系统上下文变量（与 DESIGN.md 一致，便于主题扩展） */
+  /* 主色：青绿 Teal（原宝马蓝已替换，改主色时主要调下面两行） */
   --site-context-theme-color: #ffffff;
-  --site-context-highlight-color: #1c69d4;
-  --site-context-focus-color: #0653b6;
+  --site-context-highlight-color: #0d9488;
+  --site-context-focus-color: #0f766e;
   --site-context-metainfo-color: #757575;
 
   /* 语义别名 */
@@ -17,8 +16,16 @@
   --color-text-silver: #bbbbbb;
   --color-accent: var(--site-context-highlight-color);
   --color-focus: var(--site-context-focus-color);
-  --color-hero-bg: #0a0a0a;
-  --color-header-bg: #141414;
+  /* 主色淡化：侧栏选中底、登录左栏渐变等 */
+  --color-accent-soft: rgba(13, 148, 136, 0.22);
+  --color-accent-glow-a: rgba(13, 148, 136, 0.14);
+  --color-accent-glow-b: rgba(15, 118, 110, 0.09);
+
+  /* 全局深色壳层：侧栏、顶栏、登录页左侧等同色；改一处即可全局换背景 */
+  --color-shell-bg: #0f172a;
+  --color-shell-border: #1e293b;
+  --color-hero-bg: var(--color-shell-bg);
+  --color-header-bg: var(--color-shell-bg);
   --color-border-subtle: #e8e8e8;
   --color-code-bg: #f5f5f5;
 
