@@ -1,14 +1,14 @@
 import './HomePage.css'
 
 /**
- * 内容运营子路由占位页：轮播、版块、帖子等后续在此展开。
+ * 帖子中心子路由占位页：版块、帖子、评论与互动等后续在此展开。
  */
 export function ContentOpsPage() {
   return (
     <div className="admin-subpage">
-      <h1 className="admin-subpage__title">内容运营</h1>
+      <h1 className="admin-subpage__title">帖子中心</h1>
       <p className="admin-subpage__lead">
-        轮播、版块、帖子与互动管理。对接 server 已有接口后，可替换为本模块实际列表与表单。
+        轮播、版块、帖子、评论与点赞收藏等管理。对接 server posts 相关接口后可在此实现列表与审核。
       </p>
     </div>
   )

@@ -24,9 +24,9 @@ function App() {
           }
         >
           <Route index element={<HomePage />} />
-          <Route path="content" element={<ContentOpsPage />} />
-          <Route path="mall" element={<MallOrdersPage />} />
           <Route path="users" element={<UsersAdminPage />} />
+          <Route path="orders" element={<MallOrdersPage />} />
+          <Route path="posts" element={<ContentOpsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

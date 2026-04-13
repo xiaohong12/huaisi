@@ -12,16 +12,16 @@ export function HomePage() {
       </p>
       <div className="admin-home__cards">
         <article className="admin-home__card">
-          <h3>内容运营</h3>
-          <p>轮播、版块、帖子与互动管理（对应子路由「内容运营」）。</p>
+          <h3>用户中心</h3>
+          <p>C 端用户资料与查询（左侧菜单「用户中心」）。</p>
         </article>
         <article className="admin-home__card">
-          <h3>商城与订单</h3>
-          <p>商品、库存、订单（对应子路由「商城与订单」）。</p>
+          <h3>订单中心</h3>
+          <p>商城订单与履约（左侧菜单「订单中心」）。</p>
         </article>
         <article className="admin-home__card">
-          <h3>用户与权限</h3>
-          <p>用户数据与权限（对应子路由「用户与权限」）。</p>
+          <h3>帖子中心</h3>
+          <p>内容版块与帖子互动（左侧菜单「帖子中心」）。</p>
         </article>
       </div>
     </div>

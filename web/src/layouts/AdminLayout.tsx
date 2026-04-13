@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { LayoutDashboard, Users, ShoppingCart, MessageSquare } from 'lucide-react'
 import { clearAdminToken, getAdminToken } from '../auth/adminToken'
 import { getApiBase } from '../config'
 import './AdminLayout.css'
@@ -77,16 +78,20 @@ export function AdminLayout() {
         </div>
         <nav className="admin-layout__nav">
           <NavLink to="/" end className={navClass}>
+            <LayoutDashboard className="admin-layout__nav-icon" />
             工作台
           </NavLink>
-          <NavLink to="/content" className={navClass}>
-            内容运营
-          </NavLink>
-          <NavLink to="/mall" className={navClass}>
-            商城与订单
-          </NavLink>
           <NavLink to="/users" className={navClass}>
-            用户与权限
+            <Users className="admin-layout__nav-icon" />
+            用户中心
+          </NavLink>
+          <NavLink to="/orders" className={navClass}>
+            <ShoppingCart className="admin-layout__nav-icon" />
+            订单中心
+          </NavLink>
+          <NavLink to="/posts" className={navClass}>
+            <MessageSquare className="admin-layout__nav-icon" />
+            帖子中心
           </NavLink>
         </nav>
       </aside>
@@ -111,7 +116,7 @@ export function AdminLayout() {
           </p>
         ) : null}
 
-        <main className="admin-layout__outlet surface-light" aria-label="主内容区">
+        <main className="admin-layout__outlet" aria-label="主内容区">
           <Outlet context={outletContext} />
         </main>
       </div>
