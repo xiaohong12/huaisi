@@ -6,6 +6,7 @@ import type { PoolConnection, ResultSetHeader } from "mysql2/promise";
 import QRCode from "qrcode";
 import { requireAuth } from "../middleware/authMiddleware";
 import { successResponse, errorResponse } from "../utils/response";
+import { batchResolveStoredImagesToDataUrls } from "../utils/imageMedia";
 
 const router = Router();
 
@@ -178,16 +179,20 @@ router.get("/products", async (req: Request, res: Response) => {
        LIMIT ${limitN} OFFSET ${offsetN}`
     );
 
-    const list = rows.map((r) => ({
-      id: r.id,
-      title: r.title,
-      price: toPriceNumber(r.price),
-      soldCount: Number(r.sold_count) || 0,
-      stock: Number(r.stock) || 0,
-      coverUrl: r.cover_url,
-      coverAspect: toAspectNumber(r.cover_aspect),
-      sevenDayNoReason: toSevenDayNoReason(r),
-    }));
+    const coverMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.cover_url));
+    const list = rows.map((r) => {
+      const ck = r.cover_url ?? "";
+      return {
+        id: r.id,
+        title: r.title,
+        price: toPriceNumber(r.price),
+        soldCount: Number(r.sold_count) || 0,
+        stock: Number(r.stock) || 0,
+        coverUrl: coverMap.get(ck) ?? ck,
+        coverAspect: toAspectNumber(r.cover_aspect),
+        sevenDayNoReason: toSevenDayNoReason(r),
+      };
+    });
 
     successResponse(
       res,
@@ -235,6 +240,12 @@ router.get("/products/:id", async (req: Request, res: Response) => {
     const images =
       detailImages.length > 0 ? detailImages : row.cover_url ? [row.cover_url] : [];
 
+    const imgRefs = [row.cover_url ?? "", ...images];
+    const imgMap = await batchResolveStoredImagesToDataUrls(imgRefs);
+    const ck = row.cover_url ?? "";
+    const coverResolved = imgMap.get(ck) ?? ck;
+    const detailResolved = images.map((u) => imgMap.get(u) ?? u);
+
     successResponse(
       res,
       {
@@ -243,10 +254,10 @@ router.get("/products/:id", async (req: Request, res: Response) => {
         price: toPriceNumber(row.price),
         soldCount: Number(row.sold_count) || 0,
         stock: Number(row.stock) || 0,
-        coverUrl: row.cover_url,
+        coverUrl: coverResolved,
         coverAspect: toAspectNumber(row.cover_aspect),
         sevenDayNoReason: toSevenDayNoReason(row),
-        detailImages: images,
+        detailImages: detailResolved,
         description: row.description?.trim() || "",
       },
       "Success"
@@ -352,10 +363,12 @@ router.get("/cart", requireAuth, async (req: Request, res: Response) => {
       [userId]
     );
 
+    const coverMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.cover_url));
     const list = rows.map((r) => {
       const price = toPriceNumber(r.price);
       const quantity = Number(r.quantity) || 0;
       const subtotal = Number((price * quantity).toFixed(2));
+      const ck = r.cover_url ?? "";
       return {
         id: r.id,
         productId: r.product_id,
@@ -364,7 +377,7 @@ router.get("/cart", requireAuth, async (req: Request, res: Response) => {
         quantity,
         checked: Number(r.checked) === 1,
         stock: Number(r.stock) || 0,
-        coverUrl: r.cover_url,
+        coverUrl: coverMap.get(ck) ?? ck,
         coverAspect: toAspectNumber(r.cover_aspect),
         status: Number(r.status) || 0,
         sevenDayNoReason: Number(r.seven_day_no_reason) === 1,
@@ -848,22 +861,26 @@ router.get("/orders", requireAuth, async (req: Request, res: Response) => {
       paymentStatusFilter === null ? [userId] : [userId, paymentStatusFilter];
 
     const rows = await query<MallOrderListDbRow[]>(listSql, listParams);
+    const firstCoverMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.first_cover));
 
     successResponse(
       res,
       {
-        list: rows.map((r) => ({
-          id: r.id,
-          orderNo: r.order_no,
-          storeName: r.store_name,
-          totalAmount: toPriceNumber(r.total_amount),
-          paymentStatus: Number(r.payment_status) || 0,
-          createdAt: r.created_at,
-          firstTitle: r.first_title ?? "",
-          firstCover: r.first_cover ?? "",
-          itemCount: Number(r.item_count) || 0,
-          totalQuantity: Number(r.total_quantity) || 0,
-        })),
+        list: rows.map((r) => {
+          const fk = r.first_cover ?? "";
+          return {
+            id: r.id,
+            orderNo: r.order_no,
+            storeName: r.store_name,
+            totalAmount: toPriceNumber(r.total_amount),
+            paymentStatus: Number(r.payment_status) || 0,
+            createdAt: r.created_at,
+            firstTitle: r.first_title ?? "",
+            firstCover: firstCoverMap.get(fk) ?? fk,
+            itemCount: Number(r.item_count) || 0,
+            totalQuantity: Number(r.total_quantity) || 0,
+          };
+        }),
         total,
         page,
         pageSize,
@@ -915,6 +932,8 @@ router.get("/orders/:id", requireAuth, async (req: Request, res: Response) => {
       [id]
     );
 
+    const itemCoverMap = await batchResolveStoredImagesToDataUrls(items.map((it) => it.cover_url));
+
     successResponse(
       res,
       {
@@ -932,15 +951,18 @@ router.get("/orders/:id", requireAuth, async (req: Request, res: Response) => {
         paymentStatus: Number(order.payment_status) || 0,
         remark: order.remark ?? "",
         createdAt: order.created_at,
-        items: items.map((it) => ({
-          id: it.id,
-          productId: it.product_id,
-          title: it.title,
-          coverUrl: it.cover_url,
-          price: toPriceNumber(it.price),
-          quantity: Number(it.quantity) || 0,
-          subtotal: toPriceNumber(it.subtotal),
-        })),
+        items: items.map((it) => {
+          const ck = it.cover_url ?? "";
+          return {
+            id: it.id,
+            productId: it.product_id,
+            title: it.title,
+            coverUrl: itemCoverMap.get(ck) ?? ck,
+            price: toPriceNumber(it.price),
+            quantity: Number(it.quantity) || 0,
+            subtotal: toPriceNumber(it.subtotal),
+          };
+        }),
       },
       "Success"
     );

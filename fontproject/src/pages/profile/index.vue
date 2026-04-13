@@ -68,6 +68,7 @@ import { onShow } from "@dcloudio/uni-app";
 import CustomTabBar from "@/components/CustomTabBar.vue";
 import { getMallOrderListApi } from "@/api/mallOrder";
 import { getMyFavoritePostsApi, getMyPublishedPostsApi } from "@/api/post";
+import { getUserProfileApi } from "@/api/userProfile";
 import { clearLocalLoginState } from "@/utils/clearAuthStorage";
 import { resolveAssetUrl } from "@/utils/request";
 
@@ -91,14 +92,49 @@ const menuList = [
 ];
 
 /**
- * 根据本地缓存构建展示用的头像和用户名，保证未登录时也有默认值。
+ * 个人卡片展示用昵称与头像；每次 onShow 先读缓存再请求接口刷新，避免仅读 storage 时 Vue 不响应更新。
  */
-const displayUser = computed(() => {
-  const cacheUser = uni.getStorageSync("loginUser") as LoginUser | undefined;
-  const username = cacheUser?.nickname || cacheUser?.username || "未登录用户";
-  const avatar = resolveAssetUrl(cacheUser?.avatar || "");
-  return { username, avatar };
+const displayUser = ref({
+  username: "未登录用户",
+  avatar: "",
 });
+
+/**
+ * 将 loginUser 缓存同步到展示用 ref（头像经 resolveAssetUrl，兼容相对路径与 data URL）。
+ */
+const applyLoginUserToDisplay = (cacheUser: LoginUser | undefined) => {
+  if (!cacheUser) {
+    displayUser.value = { username: "未登录用户", avatar: "" };
+    return;
+  }
+  displayUser.value = {
+    username: cacheUser.nickname || cacheUser.username || "未登录用户",
+    avatar: resolveAssetUrl(cacheUser.avatar || ""),
+  };
+};
+
+/**
+ * 已登录时请求服务端最新资料并写回 storage 与展示，保证从资料页返回后信息一致。
+ */
+const refreshUserProfileFromServer = async () => {
+  if (!uni.getStorageSync("token")) return;
+  try {
+    const res = await getUserProfileApi();
+    const ok = res.code === 0 || res.code === 200;
+    if (!ok || !res.data?.user) return;
+    const u = res.data.user;
+    const next: LoginUser = {
+      id: u.id,
+      username: u.username,
+      nickname: u.nickname,
+      avatar: u.avatar,
+    };
+    uni.setStorageSync("loginUser", next);
+    applyLoginUserToDisplay(next);
+  } catch {
+    // 请求失败时保留当前缓存展示
+  }
+};
 
 /** 个人中心展示的订单数量；未登录或请求失败时显示占位 */
 const orderTotal = ref<number | null>(null);
@@ -230,6 +266,15 @@ const refreshPublishCount = async () => {
 
 onShow(() => {
   isLoggedIn.value = !!uni.getStorageSync("token");
+  if (!isLoggedIn.value) {
+    applyLoginUserToDisplay(undefined);
+    orderTotal.value = null;
+    favoriteTotal.value = null;
+    publishTotal.value = null;
+    return;
+  }
+  applyLoginUserToDisplay(uni.getStorageSync("loginUser") as LoginUser | undefined);
+  void refreshUserProfileFromServer();
   refreshOrderCount();
   void refreshFavoriteCount();
   void refreshPublishCount();

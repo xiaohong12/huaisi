@@ -17,11 +17,14 @@ const shouldClearSessionOn401 = (relativeUrl: string): boolean => {
 export const BASE_URL = "http://192.168.31.57:7001";
 
 /**
- * 将相对资源路径（如 /image/xxx）转为可访问的完整地址；已是 http(s) 则原样返回。
+ * 将相对资源路径（如 /image/xxx）转为可访问的完整地址。
+ * 已是 http(s)、data URL（后端 Base64 预览）、小程序本地文件路径时原样返回，避免拼成非法 URL。
  */
 export const resolveAssetUrl = (pathOrUrl: string): string => {
   if (!pathOrUrl) return "";
   if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) return pathOrUrl;
+  if (/^data:image\//i.test(pathOrUrl)) return pathOrUrl;
+  if (pathOrUrl.startsWith("blob:") || pathOrUrl.startsWith("wxfile://")) return pathOrUrl;
   const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
   return `${BASE_URL}${p}`;
 };

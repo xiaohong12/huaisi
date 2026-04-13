@@ -5,7 +5,7 @@ import multer from 'multer';
 import type { RowDataPacket } from 'mysql2/promise';
 import { successResponse } from '../utils/response';
 import { query } from '../db';
-import { getMimeTypeByExt, TEST_IMAGE_DIR } from '../utils/imageMedia';
+import { batchResolveStoredImagesToDataUrls, getMimeTypeByExt, TEST_IMAGE_DIR } from '../utils/imageMedia';
 
 const router = Router();
 const uploadDir = TEST_IMAGE_DIR;
@@ -77,14 +77,27 @@ router.get('/test', (_req: Request, res: Response) => {
 });
 
 /**
- * 查询用户表全部数据并返回给前端展示。
+ * 查询用户表全部数据并返回给前端展示；avatar 为本地图时转为 Base64 data URL。
  */
 router.get('/users', async (_req: Request, res: Response) => {
   try {
     const rows = await query<UserRow[]>(
       'SELECT id, username, nickname, phone, avatar, gender, created_at FROM users ORDER BY id ASC'
     );
-    successResponse(res, rows, '用户列表获取成功');
+    const avatarMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.avatar));
+    const payload = rows.map((r) => {
+      const k = r.avatar ?? '';
+      return {
+        id: r.id,
+        username: r.username,
+        nickname: r.nickname,
+        phone: r.phone,
+        avatar: avatarMap.get(k) ?? k,
+        gender: r.gender,
+        created_at: r.created_at,
+      };
+    });
+    successResponse(res, payload, '用户列表获取成功');
   } catch (error) {
     const err = error as Error;
     successResponse(res, null, `用户列表获取失败: ${err.message}`, 500, 500);

@@ -6,6 +6,7 @@ import { execute, queryOne } from '../db';
 import { requireAuth } from '../middleware/authMiddleware';
 import { successResponse } from '../utils/response';
 import config from '../config';
+import { resolveStoredImageToBase64DataUrl } from '../utils/imageMedia';
 
 const router = Router();
 const TOKEN_EXPIRE_DAYS = 7;
@@ -79,6 +80,7 @@ function getTokenExpireAt(): string {
 
 /**
  * 为指定用户签发 token 并写入 user_tokens，单端登录会覆盖旧 token。
+ * 返回的 user.avatar 为 data URL 或外链转成的 data URL，便于小程序展示本地 image/test 头像。
  */
 async function issueLoginToken(user: Pick<UserLoginRow, 'id' | 'username' | 'nickname' | 'avatar' | 'gender'>) {
   const token = generateToken();
@@ -92,6 +94,7 @@ async function issueLoginToken(user: Pick<UserLoginRow, 'id' | 'username' | 'nic
        is_revoked = 0`,
     [user.id, token, expiresAt]
   );
+  const avatarDisplay = await resolveStoredImageToBase64DataUrl(user.avatar ?? '');
   return {
     token,
     expiresAt,
@@ -99,7 +102,7 @@ async function issueLoginToken(user: Pick<UserLoginRow, 'id' | 'username' | 'nic
       id: user.id,
       username: user.username,
       nickname: user.nickname,
-      avatar: user.avatar,
+      avatar: avatarDisplay,
       gender: user.gender
     }
   };

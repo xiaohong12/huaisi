@@ -5,6 +5,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { execute, query, queryOne } from "../db";
 import { requireAuth } from "../middleware/authMiddleware";
 import { successResponse, errorResponse } from "../utils/response";
+import { resolveStoredImageToBase64DataUrl } from "../utils/imageMedia";
 
 const router = Router();
 
@@ -276,6 +277,45 @@ function isStrongPassword(value: string): boolean {
 }
 
 /**
+ * GET /api/user/profile
+ * 获取当前登录用户资料摘要（头像为本地 image/test 文件时转为 data URL），供个人中心每次进入/返回时刷新展示。
+ */
+router.get("/profile", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = normalizeUserId(req);
+    if (!userId) {
+      errorResponse(res, "请先登录", 401);
+      return;
+    }
+    const row = await queryOne<UserProfileRow>(
+      `SELECT id, username, nickname, avatar, gender FROM users WHERE id = ? LIMIT 1`,
+      [userId]
+    );
+    if (!row) {
+      errorResponse(res, "用户不存在", 404);
+      return;
+    }
+    const avatarDisplay = await resolveStoredImageToBase64DataUrl(row.avatar ?? "");
+    successResponse(
+      res,
+      {
+        user: {
+          id: row.id,
+          username: row.username,
+          nickname: row.nickname,
+          avatar: avatarDisplay,
+          gender: row.gender,
+        },
+      },
+      "Success"
+    );
+  } catch (e) {
+    console.error("[user] profile get", e);
+    errorResponse(res, "资料获取失败", 500);
+  }
+});
+
+/**
  * PUT /api/user/profile
  * 已登录用户更新个人资料（当前支持头像 avatar）；成功后返回最新用户摘要供前端刷新本地缓存。
  */
@@ -307,6 +347,7 @@ router.put("/profile", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    const avatarDisplay = await resolveStoredImageToBase64DataUrl(row.avatar ?? "");
     successResponse(
       res,
       {
@@ -314,7 +355,7 @@ router.put("/profile", requireAuth, async (req: Request, res: Response) => {
           id: row.id,
           username: row.username,
           nickname: row.nickname,
-          avatar: row.avatar,
+          avatar: avatarDisplay,
           gender: row.gender,
         },
       },

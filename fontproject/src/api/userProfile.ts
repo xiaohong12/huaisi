@@ -12,6 +12,17 @@ export interface ProfileUserDto {
 }
 
 /**
+ * GET /api/user/profile
+ * 拉取当前登录用户资料（与登录后缓存字段一致，头像已为可展示的 data URL 或外链）。
+ */
+export const getUserProfileApi = () => {
+  return request<{ user: ProfileUserDto }>({
+    url: "/api/user/profile",
+    method: "GET",
+  });
+};
+
+/**
  * PUT /api/user/profile
  * 更新当前用户资料（头像 avatar 为相对路径如 /image/test/xxx.png 或完整 http(s) 外链）。
  */

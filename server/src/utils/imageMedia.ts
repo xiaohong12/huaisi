@@ -132,3 +132,26 @@ export async function resolveStoredImageToBase64DataUrl(stored: string): Promise
 
   return s;
 }
+
+/**
+ * 批量将图片引用解析为 data URL，相同字符串只解析一次，减轻列表接口读盘与 fetch 次数。
+ */
+export async function batchResolveStoredImagesToDataUrls(
+  refs: Iterable<string | null | undefined>
+): Promise<Map<string, string>> {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const r of refs) {
+    const k = r == null ? "" : String(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    keys.push(k);
+  }
+  const map = new Map<string, string>();
+  await Promise.all(
+    keys.map(async (k) => {
+      map.set(k, await resolveStoredImageToBase64DataUrl(k));
+    })
+  );
+  return map;
+}

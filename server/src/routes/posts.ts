@@ -5,7 +5,11 @@ import { query, queryOne, transaction } from "../db";
 import { successResponse } from "../utils/response";
 import { optionalAuth, requireAuth } from "../middleware/authMiddleware";
 import { isPublishSectionKey, SECTION_NAME_BY_KEY, type PublishSectionKey } from "../constants/publishSection";
-import { normalizeImageRefForStorage, resolveStoredImageToBase64DataUrl } from "../utils/imageMedia";
+import {
+  batchResolveStoredImagesToDataUrls,
+  normalizeImageRefForStorage,
+  resolveStoredImageToBase64DataUrl,
+} from "../utils/imageMedia";
 
 const router = Router();
 
@@ -45,6 +49,7 @@ interface PostFeedItemJson {
   likeCount: number;
   favoriteCount: number;
   nickname: string;
+  /** 作者头像：本地 test 图已转为 data URL；外链经 fetch 转 data URL；无法解析时仍为原字符串 */
   avatar: string;
   sectionName: string;
   /** 帖子配图：均为 data:image/...;base64,... 形式，便于小程序直接绑定展示 */
@@ -193,7 +198,8 @@ function toFeedItemJson(
   r: PostFeedRow,
   imageUrls: string[],
   liked: boolean,
-  favorited: boolean
+  favorited: boolean,
+  avatarDisplay: string
 ): PostFeedItemJson {
   return {
     id: r.id,
@@ -204,7 +210,7 @@ function toFeedItemJson(
     likeCount: r.like_count,
     favoriteCount: r.favorite_count,
     nickname: r.nickname,
-    avatar: r.avatar ?? "",
+    avatar: avatarDisplay,
     sectionName: r.section_name ?? "帖子",
     imageUrls,
     liked,
@@ -232,6 +238,9 @@ async function getPostFeedItemById(
   const imageMap = await buildImageMapForIds([postId]);
   const base64Map = await resolveImageMapToBase64(imageMap);
   const imageUrls = base64Map.get(postId) ?? [];
+  const avKey = row.avatar ?? "";
+  const avatarMap = await batchResolveStoredImagesToDataUrls([avKey]);
+  const avatarDisplay = avatarMap.get(avKey) ?? avKey;
   let liked = false;
   let favorited = false;
   if (viewerUserId != null) {
@@ -239,7 +248,7 @@ async function getPostFeedItemById(
     liked = sets.liked.has(postId);
     favorited = sets.favorited.has(postId);
   }
-  return toFeedItemJson(row, imageUrls, liked, favorited);
+  return toFeedItemJson(row, imageUrls, liked, favorited, avatarDisplay);
 }
 
 /**
@@ -278,6 +287,7 @@ async function listFeedHandler(req: Request, res: Response): Promise<void> {
     const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
     const imageMap = await buildImageMapForIds(ids);
     const base64Map = await resolveImageMapToBase64(imageMap);
+    const avatarMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.avatar));
 
     const viewerId = req.userId;
     let likedSet = new Set<number>();
@@ -290,7 +300,15 @@ async function listFeedHandler(req: Request, res: Response): Promise<void> {
 
     const list: PostFeedItemJson[] = rows.map((r) => {
       const pid = Number(r.id);
-      return toFeedItemJson(r, base64Map.get(pid) ?? [], likedSet.has(pid), favoritedSet.has(pid));
+      const avKey = r.avatar ?? "";
+      const avatarDisplay = avatarMap.get(avKey) ?? avKey;
+      return toFeedItemJson(
+        r,
+        base64Map.get(pid) ?? [],
+        likedSet.has(pid),
+        favoritedSet.has(pid),
+        avatarDisplay
+      );
     });
 
     successResponse(res, { list, page, pageSize: limitN }, "获取帖子列表成功");
@@ -343,6 +361,7 @@ async function listMyFavoritePostsHandler(req: Request, res: Response): Promise<
     const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
     const imageMap = await buildImageMapForIds(ids);
     const base64Map = await resolveImageMapToBase64(imageMap);
+    const avatarMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.avatar));
 
     let likedSet = new Set<number>();
     let favoritedSet = new Set<number>();
@@ -354,7 +373,15 @@ async function listMyFavoritePostsHandler(req: Request, res: Response): Promise<
 
     const list: PostFeedItemJson[] = rows.map((r) => {
       const pid = Number(r.id);
-      return toFeedItemJson(r, base64Map.get(pid) ?? [], likedSet.has(pid), favoritedSet.has(pid));
+      const avKey = r.avatar ?? "";
+      const avatarDisplay = avatarMap.get(avKey) ?? avKey;
+      return toFeedItemJson(
+        r,
+        base64Map.get(pid) ?? [],
+        likedSet.has(pid),
+        favoritedSet.has(pid),
+        avatarDisplay
+      );
     });
 
     successResponse(res, { list, page, pageSize: limitN, total }, "获取收藏列表成功");
@@ -403,6 +430,7 @@ async function listMyPublishedPostsHandler(req: Request, res: Response): Promise
     const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
     const imageMap = await buildImageMapForIds(ids);
     const base64Map = await resolveImageMapToBase64(imageMap);
+    const avatarMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.avatar));
 
     let likedSet = new Set<number>();
     let favoritedSet = new Set<number>();
@@ -414,7 +442,15 @@ async function listMyPublishedPostsHandler(req: Request, res: Response): Promise
 
     const list: PostFeedItemJson[] = rows.map((r) => {
       const pid = Number(r.id);
-      return toFeedItemJson(r, base64Map.get(pid) ?? [], likedSet.has(pid), favoritedSet.has(pid));
+      const avKey = r.avatar ?? "";
+      const avatarDisplay = avatarMap.get(avKey) ?? avKey;
+      return toFeedItemJson(
+        r,
+        base64Map.get(pid) ?? [],
+        likedSet.has(pid),
+        favoritedSet.has(pid),
+        avatarDisplay
+      );
     });
 
     successResponse(res, { list, page, pageSize: limitN, total }, "获取我的发布列表成功");
