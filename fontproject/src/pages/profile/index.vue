@@ -7,13 +7,12 @@
 
     <view class="content">
       <view class="user-card" @click="goUserInfo">
-        <u-avatar :src="displayUser.avatar" size="62" />
+        <u-avatar :src="displayUser.avatar" size="52" />
         <view class="user-main">
           <text class="username">{{ displayUser.username }}</text>
-          <text class="sub-text">点击进入个人信息页</text>
         </view>
         <view class="profile-tag">个人主页</view>
-        <u-icon name="arrow-right" size="16" color="#94a3b8" />
+        <u-icon name="arrow-right" size="14" color="#94a3b8" />
       </view>
 
       <view class="quick-panel">
@@ -236,9 +235,13 @@ onShow(() => {
 });
 
 /**
- * 点击头像或用户名，进入用户信息页面。
+ * 点击用户卡片：已登录进入个人信息页；未登录跳转登录页。
  */
 const goUserInfo = () => {
+  if (!uni.getStorageSync("token")) {
+    uni.navigateTo({ url: "/pages/login/index" });
+    return;
+  }
   uni.navigateTo({
     url: "/pages/profile/user-info",
   });
@@ -350,25 +353,25 @@ const handleLogout = () => {
 }
 
 .user-card {
-  margin-bottom: 22rpx;
-  padding: 30rpx 24rpx;
-  border-radius: 28rpx;
+  margin-bottom: 18rpx;
+  padding: 22rpx 20rpx;
+  border-radius: 24rpx;
   background: linear-gradient(128deg, #ffffff 0%, #f7fbff 100%);
   display: flex;
   align-items: center;
-  box-shadow: 0 12rpx 34rpx rgba(24, 42, 84, 0.08);
+  box-shadow: 0 10rpx 28rpx rgba(24, 42, 84, 0.07);
   border: 1rpx solid rgba(255, 255, 255, 0.88);
 }
 
 .user-main {
   flex: 1;
   min-width: 0;
-  margin-left: 20rpx;
+  margin-left: 16rpx;
 }
 
 .username {
   display: block;
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: 700;
   color: #0f172a;
 }
@@ -380,10 +383,10 @@ const handleLogout = () => {
 }
 
 .profile-tag {
-  margin-right: 12rpx;
-  padding: 8rpx 16rpx;
+  margin-right: 8rpx;
+  padding: 5rpx 12rpx;
   border-radius: 999rpx;
-  font-size: 20rpx;
+  font-size: 18rpx;
   color: #2356d7;
   background: rgba(45, 97, 233, 0.1);
 }
