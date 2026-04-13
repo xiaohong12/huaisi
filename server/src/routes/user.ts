@@ -14,6 +14,15 @@ interface UserPasswordRow extends RowDataPacket {
   password: string;
 }
 
+/** 个人资料接口返回用的用户摘要（与登录态缓存字段对齐） */
+interface UserProfileRow extends RowDataPacket {
+  id: number;
+  username: string;
+  nickname: string;
+  avatar: string;
+  gender: "male" | "female" | "unknown";
+}
+
 /** 地址表行（与 user_addresses 一致） */
 interface UserAddressRow extends RowDataPacket {
   id: number;
@@ -265,6 +274,57 @@ function isStrongPassword(value: string): boolean {
   if (!value || value.length < 8) return false;
   return /[a-z]/.test(value) && /[A-Z]/.test(value);
 }
+
+/**
+ * PUT /api/user/profile
+ * 已登录用户更新个人资料（当前支持头像 avatar）；成功后返回最新用户摘要供前端刷新本地缓存。
+ */
+router.put("/profile", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = normalizeUserId(req);
+    if (!userId) {
+      errorResponse(res, "请先登录", 401);
+      return;
+    }
+    const body = req.body as Record<string, unknown>;
+    const avatar = typeof body.avatar === "string" ? body.avatar.trim() : "";
+    if (!avatar) {
+      errorResponse(res, "请提供头像地址", 400);
+      return;
+    }
+    if (avatar.length > 2048) {
+      errorResponse(res, "头像地址过长", 400);
+      return;
+    }
+
+    await execute(`UPDATE users SET avatar = ? WHERE id = ?`, [avatar, userId]);
+    const row = await queryOne<UserProfileRow>(
+      `SELECT id, username, nickname, avatar, gender FROM users WHERE id = ? LIMIT 1`,
+      [userId]
+    );
+    if (!row) {
+      errorResponse(res, "用户不存在", 404);
+      return;
+    }
+
+    successResponse(
+      res,
+      {
+        user: {
+          id: row.id,
+          username: row.username,
+          nickname: row.nickname,
+          avatar: row.avatar,
+          gender: row.gender,
+        },
+      },
+      "资料已更新"
+    );
+  } catch (e) {
+    console.error("[user] profile update", e);
+    errorResponse(res, "资料更新失败", 500);
+  }
+});
 
 /**
  * PUT /api/user/password

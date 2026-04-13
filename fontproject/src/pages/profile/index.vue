@@ -69,6 +69,7 @@ import CustomTabBar from "@/components/CustomTabBar.vue";
 import { getMallOrderListApi } from "@/api/mallOrder";
 import { getMyFavoritePostsApi, getMyPublishedPostsApi } from "@/api/post";
 import { clearLocalLoginState } from "@/utils/clearAuthStorage";
+import { resolveAssetUrl } from "@/utils/request";
 
 /**
  * 本地缓存中的用户数据结构。
@@ -95,7 +96,7 @@ const menuList = [
 const displayUser = computed(() => {
   const cacheUser = uni.getStorageSync("loginUser") as LoginUser | undefined;
   const username = cacheUser?.nickname || cacheUser?.username || "未登录用户";
-  const avatar = cacheUser?.avatar || "";
+  const avatar = resolveAssetUrl(cacheUser?.avatar || "");
   return { username, avatar };
 });
 

@@ -1,5 +1,10 @@
+import fs from 'fs';
+import path from 'path';
 import { Router, Request, Response } from 'express';
 import OpenAI from 'openai';
+import { requireAuth } from '../middleware/authMiddleware';
+import { successResponse, errorResponse } from '../utils/response';
+import { getMimeTypeByExt, TEST_IMAGE_DIR } from '../utils/imageMedia';
 
 const router = Router();
 
@@ -126,6 +131,119 @@ router.post('/chat', async (req: Request, res: Response) => {
     res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
     res.end();
   }
+});
+
+/**
+ * 使用 OpenAI 官方接口生成方形头像图（需配置 OPENAI_API_KEY）；失败时返回 null 以便走备用渠道。
+ */
+async function tryOpenAiAvatarImage(prompt: string): Promise<Buffer | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return null;
+  }
+  const client = new OpenAI({ apiKey });
+  const result = await client.images.generate({
+    model: 'dall-e-2',
+    prompt,
+    n: 1,
+    size: '256x256',
+    response_format: 'b64_json',
+  });
+  const b64 = result.data?.[0]?.b64_json;
+  if (!b64) {
+    throw new Error('OpenAI 未返回图片数据');
+  }
+  return Buffer.from(b64, 'base64');
+}
+
+/**
+ * 通过 Pollinations 公开图床按提示词生成图片（无需 key），作为未配置 OpenAI 绘图时的兜底方案。
+ */
+async function fetchPollinationsAvatarImage(prompt: string): Promise<Buffer> {
+  const safe = prompt.slice(0, 400);
+  const encoded = encodeURIComponent(safe);
+  const url = `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true&model=flux`;
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'HuasiServer/1.0',
+      Accept: 'image/*',
+    },
+    redirect: 'follow',
+  });
+  if (!response.ok) {
+    throw new Error(`绘图服务 HTTP ${response.status}`);
+  }
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.startsWith('image/')) {
+    throw new Error('绘图服务未返回图片');
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
+/**
+ * POST /api/ai/generate-avatar
+ * AI 根据文字描述生成用户头像：优先 OpenAI DALL·E，其次 Pollinations；图片写入 image/test。
+ * 返回 avatar（相对路径，供写入用户表）与 imageBase64（data URL，供小程序预览，避免局域网 IP 未配置下载域名导致图片加载失败）。
+ */
+router.post('/generate-avatar', requireAuth, async (req: Request, res: Response) => {
+  const userId = Number(req.userId || 0);
+  if (!Number.isFinite(userId) || userId <= 0) {
+    errorResponse(res, '请先登录', 401);
+    return;
+  }
+
+  const body = req.body as { prompt?: string };
+  const raw = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+  if (raw.length < 2) {
+    errorResponse(res, '请至少输入 2 个字的画面描述', 400);
+    return;
+  }
+  if (raw.length > 500) {
+    errorResponse(res, '描述请不要超过 500 字', 400);
+    return;
+  }
+
+  // const promptForModel = `Square avatar icon, centered face or subject, clean background, friendly, suitable as user profile photo: ${raw}`;
+
+  const promptForModel = raw;
+
+  let imageBuffer: Buffer;
+  try {
+    const fromOpenAi = await tryOpenAiAvatarImage(promptForModel.slice(0, 1000));
+    console.log(fromOpenAi)
+    if (fromOpenAi) {
+      imageBuffer = fromOpenAi;
+    } else {
+      imageBuffer = await fetchPollinationsAvatarImage(promptForModel);
+    }
+  } catch (primaryErr) {
+    console.warn('[AI] 主通道头像生成失败，尝试兜底:', primaryErr);
+    try {
+      imageBuffer = await fetchPollinationsAvatarImage(promptForModel);
+    } catch (fallbackErr) {
+      console.error('[AI] 头像生成失败:', fallbackErr);
+      errorResponse(res, 'AI 头像生成失败，请稍后重试', 502);
+      return;
+    }
+  }
+
+  if (!fs.existsSync(TEST_IMAGE_DIR)) {
+    fs.mkdirSync(TEST_IMAGE_DIR, { recursive: true });
+  }
+  const fileName = `avatar-ai-${userId}-${Date.now()}.png`;
+  const filePath = path.join(TEST_IMAGE_DIR, fileName);
+  try {
+    fs.writeFileSync(filePath, imageBuffer);
+  } catch (e) {
+    console.error('[AI] 头像写入磁盘失败:', e);
+    errorResponse(res, '头像保存失败', 500);
+    return;
+  }
+
+  const avatar = `/image/test/${fileName}`;
+  const mime = getMimeTypeByExt(path.extname(fileName));
+  const imageBase64 = `data:${mime};base64,${imageBuffer.toString('base64')}`;
+  successResponse(res, { avatar, imageBase64 }, '生成成功');
 });
 
 export default router;

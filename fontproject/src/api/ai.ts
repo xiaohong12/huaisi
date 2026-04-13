@@ -1,4 +1,4 @@
-import { BASE_URL } from '@/utils/request';
+import { BASE_URL, request } from '@/utils/request';
 declare const wx: any;
 
 /**
@@ -138,4 +138,16 @@ export const streamAiChat = (
   });
 
   return requestTask;
+};
+
+/**
+ * POST /api/ai/generate-avatar
+ * 根据文字描述生成头像：返回 avatar（相对路径）与 imageBase64（data URL，便于小程序内直接展示）。
+ */
+export const generateAvatarByAiApi = (data: { prompt: string }) => {
+  return request<{ avatar: string; imageBase64: string }>({
+    url: '/api/ai/generate-avatar',
+    method: 'POST',
+    data: data as Record<string, unknown>,
+  });
 };
