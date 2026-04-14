@@ -27,8 +27,8 @@ export interface AdminUserListResponse {
 export interface FetchAdminUserListParams {
   page: number
   pageSize: number
-  /** 模糊匹配用户名 */
-  username?: string
+  /** 模糊匹配用户名/昵称/手机号 */
+  keyword?: string
 }
 
 export interface UpdateAdminUserPayload {
@@ -75,8 +75,8 @@ export async function fetchAdminUserList(
     page: String(params.page),
     pageSize: String(params.pageSize),
   })
-  if (params.username?.trim()) {
-    sp.set('username', params.username.trim())
+  if (params.keyword?.trim()) {
+    sp.set('keyword', params.keyword.trim())
   }
   const res = await fetch(`${getApiBase()}/api/admin/users?${sp.toString()}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},

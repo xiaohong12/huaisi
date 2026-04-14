@@ -130,7 +130,7 @@ export function UsersAdminPage() {
       const json = await fetchAdminUserList({
         page,
         pageSize,
-        username: appliedKeyword || undefined,
+        keyword: appliedKeyword || undefined,
       })
       if (json.code !== 0 || !json.data) {
         setError(json.message || '加载失败')
@@ -304,16 +304,16 @@ export function UsersAdminPage() {
             onSubmit={handleSearch}
             className="mb-6 flex flex-wrap items-center gap-3"
             role="search"
-            aria-label="按用户名搜索"
+            aria-label="按用户名、昵称、手机号搜索"
           >
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="输入用户名关键词搜索..."
+                placeholder="输入用户名/昵称/手机号搜索..."
                 value={keywordInput}
                 onChange={(e) => setKeywordInput(e.target.value)}
                 className="h-8 rounded-md bg-transparent pl-9 pr-4"
-                aria-label="用户名搜索"
+                aria-label="用户名昵称手机号搜索"
               />
             </div>
             <Button type="submit" className="h-8 rounded-md px-4">

@@ -36,8 +36,9 @@ interface CountRow extends RowDataPacket {
 
 /**
  * GET /api/admin/users
- * 管理后台：分页查询小程序端 users 表，支持按用户名模糊筛选；需管理员 Bearer token。
- * 查询参数：page（默认 1）、pageSize（默认 20，最大 100）、username（可选，模糊匹配 username 字段）。
+ * 管理后台：分页查询小程序端 users 表，支持按用户名/昵称/手机号模糊筛选；需管理员 Bearer token。
+ * 查询参数：page（默认 1）、pageSize（默认 20，最大 100）、keyword（可选，模糊匹配 username/nickname/phone）。
+ * 兼容参数：username（旧参数名，会被视为 keyword）。
  */
 router.get('/', requireAdminAuth, async (req: Request, res: Response) => {
   try {
@@ -48,7 +49,12 @@ router.get('/', requireAdminAuth, async (req: Request, res: Response) => {
       pageSize = DEFAULT_PAGE_SIZE;
     }
     pageSize = Math.min(MAX_PAGE_SIZE, pageSize);
-    const usernameKw = typeof req.query.username === 'string' ? req.query.username.trim() : '';
+    const keywordKw =
+      typeof req.query.keyword === 'string'
+        ? req.query.keyword.trim()
+        : typeof req.query.username === 'string'
+          ? req.query.username.trim()
+          : '';
 
     /** 分页用整数，供 LIMIT/OFFSET 内联（避免部分 MySQL 对预处理 LIMIT/OFFSET 报 stmt_execute 参数错误） */
     const safeLimit = Math.max(1, Math.min(MAX_PAGE_SIZE, Math.floor(Number(pageSize))));
@@ -57,9 +63,10 @@ router.get('/', requireAdminAuth, async (req: Request, res: Response) => {
 
     const whereParams: string[] = [];
     let whereSql = '';
-    if (usernameKw) {
-      whereSql = 'WHERE username LIKE ?';
-      whereParams.push(`%${usernameKw}%`);
+    if (keywordKw) {
+      whereSql = 'WHERE (username LIKE ? OR nickname LIKE ? OR phone LIKE ?)';
+      const kw = `%${keywordKw}%`;
+      whereParams.push(kw, kw, kw);
     }
 
     const countRow = await queryOne<CountRow>(
