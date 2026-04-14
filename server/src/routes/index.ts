@@ -8,6 +8,7 @@ import aiRouter from './ai';
 import userRouter from './user';
 import adminAuthRouter from './adminAuth';
 import adminUsersRouter from './adminUsers';
+import adminOrdersRouter from './adminOrders';
 
 const router = Router();
 
@@ -29,5 +30,9 @@ router.use('/admin/auth', adminAuthRouter);
  * 管理后台业务：C 端用户列表等（均需 admin token）。
  */
 router.use('/admin/users', adminUsersRouter);
+/**
+ * 管理后台业务：商城订单列表（含商品首图与商品名，均需 admin token）。
+ */
+router.use('/admin/orders', adminOrdersRouter);
 
 export default router;
