@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
-import type { AdminMallProductDetail, AdminOrderListItem } from '@/api/adminOrders'
-import { fetchAdminMallProductDetail, fetchAdminOrderList } from '@/api/adminOrders'
+import { Search, ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react'
+import type { AdminOrderListItem, AdminOrderProductSnapshot, AdminOrderWorkflowStatus } from '@/api/adminOrders'
+import {
+  fetchAdminOrderFirstProductSnapshot,
+  fetchAdminOrderList,
+  patchAdminOrderWorkflowStatus,
+} from '@/api/adminOrders'
+import { ChangeOrderStatusDialog } from '@/components/orders/ChangeOrderStatusDialog'
 import { ProductPreviewDialog } from '@/components/orders/ProductPreviewDialog'
 import { getApiBase } from '@/config'
 import { Button } from '@/components/ui/button'
@@ -17,9 +22,19 @@ import {
 } from '@/components/ui/table'
 import './HomePage.css'
 
-interface OrderItem extends Omit<AdminOrderListItem, 'status'> {
-  status: 'pending' | 'paid' | 'shipped' | 'completed' | 'cancelled'
-}
+type OrderItem = AdminOrderListItem
+
+/** 订单状态筛选项：空字符串表示不按状态过滤 */
+type OrderStatusFilterValue = '' | AdminOrderWorkflowStatus
+
+const ORDER_STATUS_FILTER_OPTIONS: { value: OrderStatusFilterValue; label: string }[] = [
+  { value: '', label: '全部状态' },
+  { value: 'pending', label: '待付款' },
+  { value: 'paid', label: '已付款' },
+  { value: 'shipped', label: '已发货' },
+  { value: 'completed', label: '已完成' },
+  { value: 'cancelled', label: '已取消' },
+]
 
 function OrderStatusBadge({ status }: { status: OrderItem['status'] }) {
   const map: Record<OrderItem['status'], { label: string; className: string }> = {
@@ -60,14 +75,17 @@ export function MallOrdersPage() {
   const [pageSize] = useState(10)
   const [keywordInput, setKeywordInput] = useState('')
   const [appliedKeyword, setAppliedKeyword] = useState('')
+  const [statusFilterInput, setStatusFilterInput] = useState<OrderStatusFilterValue>('')
+  const [appliedStatus, setAppliedStatus] = useState<OrderStatusFilterValue>('')
   const [list, setList] = useState<OrderItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [previewOrder, setPreviewOrder] = useState<OrderItem | null>(null)
-  const [previewDetail, setPreviewDetail] = useState<AdminMallProductDetail | null>(null)
+  const [previewSnapshot, setPreviewSnapshot] = useState<AdminOrderProductSnapshot | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
+  const [statusDialogOrder, setStatusDialogOrder] = useState<OrderItem | null>(null)
 
   /**
    * 加载管理后台订单列表：包含商品主图（第一张）和商品名称。
@@ -80,6 +98,7 @@ export function MallOrdersPage() {
         page,
         pageSize,
         keyword: appliedKeyword || undefined,
+        status: appliedStatus || undefined,
       })
 
       if (json.code !== 0 || !json.data) {
@@ -89,12 +108,7 @@ export function MallOrdersPage() {
         return
       }
 
-      setList(
-        json.data.list.map((item) => ({
-          ...item,
-          status: item.status === 'paid' ? 'paid' : 'pending',
-        }))
-      )
+      setList(json.data.list)
       setTotal(json.data.total)
     } catch {
       setError('网络错误，请检查后端是否启动')
@@ -103,7 +117,7 @@ export function MallOrdersPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, appliedKeyword])
+  }, [page, pageSize, appliedKeyword, appliedStatus])
 
   useEffect(() => {
     void load()
@@ -114,6 +128,7 @@ export function MallOrdersPage() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     setAppliedKeyword(keywordInput.trim())
+    setAppliedStatus(statusFilterInput)
     setPage(1)
   }
 
@@ -139,28 +154,28 @@ export function MallOrdersPage() {
   }
 
   /**
-   * 点击商品名后打开商品详情弹窗，并拉取完整商品信息（含多张详情图）。
+   * 点击商品名后打开弹窗，并按订单 ID 拉取「首件商品」下单快照（标题/单价/数量/详情图/文案），与当前商品库解耦。
    */
   const openProductPreview = useCallback(async (order: OrderItem) => {
     setPreviewOrder(order)
-    setPreviewDetail(null)
+    setPreviewSnapshot(null)
     setPreviewError(null)
 
-    if (!order.productId) {
-      setPreviewError('未获取到商品 ID，无法加载完整详情')
+    if (!order.id) {
+      setPreviewError('未获取到订单 ID，无法加载快照')
       return
     }
 
     setPreviewLoading(true)
     try {
-      const json = await fetchAdminMallProductDetail(order.productId)
+      const json = await fetchAdminOrderFirstProductSnapshot(order.id)
       if (json.code !== 0 || !json.data) {
-        setPreviewError(json.message || '商品详情加载失败')
+        setPreviewError(json.message || '商品快照加载失败')
         return
       }
-      setPreviewDetail(json.data)
+      setPreviewSnapshot(json.data)
     } catch {
-      setPreviewError('网络错误，商品详情加载失败')
+      setPreviewError('网络错误，商品快照加载失败')
     } finally {
       setPreviewLoading(false)
     }
@@ -171,10 +186,34 @@ export function MallOrdersPage() {
    */
   const closeProductPreview = useCallback(() => {
     setPreviewOrder(null)
-    setPreviewDetail(null)
+    setPreviewSnapshot(null)
     setPreviewError(null)
     setPreviewLoading(false)
   }, [])
+
+  const closeStatusDialog = useCallback(() => {
+    setStatusDialogOrder(null)
+  }, [])
+
+  /**
+   * 保存订单流程状态：调用管理端接口写入 workflow_status 与变更理由日志。
+   */
+  const saveOrderWorkflowStatus = useCallback(
+    async (nextStatus: OrderItem['status'], reason: string) => {
+      if (!statusDialogOrder?.id) {
+        throw new Error('订单信息缺失')
+      }
+      const json = await patchAdminOrderWorkflowStatus(statusDialogOrder.id, {
+        status: nextStatus,
+        reason,
+      })
+      if (json.code !== 0) {
+        throw new Error(json.message || '保存失败')
+      }
+      await load()
+    },
+    [statusDialogOrder, load]
+  )
 
   return (
     <div className="admin-subpage">
@@ -202,6 +241,25 @@ export function MallOrdersPage() {
                 aria-label="订单搜索"
               />
             </div>
+          
+            <div className="flex min-w-[140px] flex-col gap-1 sm:max-w-[180px]">
+              <label htmlFor="order-status-filter" className="sr-only">
+                订单状态
+              </label>
+              <select
+                id="order-status-filter"
+                className="flex h-8 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                value={statusFilterInput}
+                onChange={(e) => setStatusFilterInput((e.target.value || '') as OrderStatusFilterValue)}
+                aria-label="按订单状态筛选"
+              >
+                {ORDER_STATUS_FILTER_OPTIONS.map((o) => (
+                  <option key={o.value === '' ? 'all' : o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Button type="submit" className="h-8 rounded-md px-4">
               搜索
             </Button>
@@ -212,6 +270,8 @@ export function MallOrdersPage() {
               onClick={() => {
                 setKeywordInput('')
                 setAppliedKeyword('')
+                setStatusFilterInput('')
+                setAppliedStatus('')
                 setPage(1)
               }}
             >
@@ -254,7 +314,7 @@ export function MallOrdersPage() {
                 ) : (
                   list.map((order) => (
                     <TableRow key={order.id} className="group transition-colors hover:bg-muted/50">
-                      <TableCell className="font-medium text-foreground">{order.orderNo}</TableCell>
+                      <TableCell className="font-medium text-[#0d9488]">{order.orderNo}</TableCell>
                       <TableCell>
                         {order.productName ? (
                           <div className="flex items-center gap-2">
@@ -269,7 +329,7 @@ export function MallOrdersPage() {
                             )}
                             <button
                               type="button"
-                              title="点击查看商品信息"
+                              title="点击查看下单时商品快照"
                               className="max-w-[280px] truncate text-left text-sm text-blue-600 underline decoration-dashed underline-offset-4 hover:text-blue-700"
                               onClick={() => void openProductPreview(order)}
                             >
@@ -286,7 +346,7 @@ export function MallOrdersPage() {
                           <span className="text-xs text-muted-foreground">ID: {order.userId}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-foreground font-mono">¥{Number(order.totalAmount).toFixed(2)}</TableCell>
+                      <TableCell className="text-[#ff4400] font-mono">¥{Number(order.totalAmount).toFixed(2)}</TableCell>
                       <TableCell>
                         <OrderStatusBadge status={order.status} />
                       </TableCell>
@@ -294,8 +354,16 @@ export function MallOrdersPage() {
                         {formatTime(order.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="size-8 rounded-md text-muted-foreground hover:text-primary">
-                          <Eye className="size-4" />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 rounded-md text-foreground hover:bg-muted hover:text-foreground"
+                          aria-label="修改订单状态"
+                          title="修改订单状态"
+                          onClick={() => setStatusDialogOrder(order)}
+                        >
+                          <MoreHorizontal className="size-5" strokeWidth={2.25} aria-hidden />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -341,12 +409,21 @@ export function MallOrdersPage() {
       <ProductPreviewDialog
         open={Boolean(previewOrder)}
         order={previewOrder}
-        detail={previewDetail}
+        detail={null}
+        snapshot={previewSnapshot}
+        expectsSnapshot
         loading={previewLoading}
         error={previewError}
         onClose={closeProductPreview}
         resolveProductCoverSrc={resolveProductCoverSrc}
         formatTime={formatTime}
+      />
+
+      <ChangeOrderStatusDialog
+        open={Boolean(statusDialogOrder)}
+        order={statusDialogOrder}
+        onClose={closeStatusDialog}
+        onSubmit={saveOrderWorkflowStatus}
       />
     </div>
   )

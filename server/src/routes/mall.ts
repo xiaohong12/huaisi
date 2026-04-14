@@ -657,7 +657,7 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
     }
 
     const product = await queryOne<MallProductRow>(
-      `SELECT id, title, price, IFNULL(stock, 0) AS stock, cover_url, status
+      `SELECT id, title, price, IFNULL(stock, 0) AS stock, cover_url, detail_images, description, status
        FROM mall_products
        WHERE id = ?
        LIMIT 1`,
@@ -710,7 +710,7 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
             throw new Error("ORDER_INSERT_FAIL");
           }
           const subtotal = goodsAmount;
-          await conn.execute(
+          const [itemIns] = await conn.execute<ResultSetHeader>(
             `INSERT INTO mall_order_items
              (order_id, product_id, title, cover_url, price, quantity, subtotal)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -722,6 +722,33 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
               unitPrice,
               quantity,
               subtotal,
+            ]
+          );
+          const orderItemId = Number(itemIns.insertId);
+          if (!Number.isFinite(orderItemId) || orderItemId <= 0) {
+            throw new Error("ORDER_ITEM_INSERT_FAIL");
+          }
+
+          /** 下单时同步固化商品详情快照，避免后续商品改价/改图/改文案引发纠纷 */
+          const detailImagesSnapshot = JSON.stringify(parseDetailImages(product.detail_images));
+          await conn.execute(
+            `INSERT INTO mall_order_product_snapshots
+             (order_id, order_item_id, user_id, product_id, product_title, product_cover_url,
+              product_price, purchase_quantity, line_subtotal, detail_images_json, description_snapshot,
+              snapshot_reason, snapshot_version)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'create_order', 1)`,
+            [
+              oid,
+              orderItemId,
+              userId,
+              productId,
+              product.title,
+              product.cover_url ?? "",
+              unitPrice,
+              quantity,
+              subtotal,
+              detailImagesSnapshot,
+              (product.description ?? "").trim(),
             ]
           );
           return oid;
@@ -1028,7 +1055,10 @@ router.put("/orders/:id/confirm-payment", requireAuth, async (req: Request, res:
       }
 
       await conn.execute(
-        `UPDATE mall_orders SET payment_status = 1 WHERE id = ? AND user_id = ?`,
+        `UPDATE mall_orders
+         SET payment_status = 1,
+             workflow_status = CASE WHEN COALESCE(workflow_status, 0) = 0 THEN 1 ELSE workflow_status END
+         WHERE id = ? AND user_id = ?`,
         [id, userId]
       );
     });

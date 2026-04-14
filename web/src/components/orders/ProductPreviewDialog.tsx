@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import type { AdminMallProductDetail } from '@/api/adminOrders'
+import type { AdminMallProductDetail, AdminOrderProductSnapshot } from '@/api/adminOrders'
 import { Button } from '@/components/ui/button'
 
 export interface ProductPreviewOrder {
@@ -16,7 +16,12 @@ export interface ProductPreviewOrder {
 interface ProductPreviewDialogProps {
   open: boolean
   order: ProductPreviewOrder | null
+  /** 当前商城商品详情（与 snapshot 二选一或均无，加载中时均为 null） */
   detail: AdminMallProductDetail | null
+  /** 下单时固化的商品快照（优先于 detail 展示） */
+  snapshot?: AdminOrderProductSnapshot | null
+  /** 为 true 且正在加载、尚无 snapshot 时，不套用实时商品布局，避免误展示订单总金额等字段 */
+  expectsSnapshot?: boolean
   loading: boolean
   error: string | null
   onClose: () => void
@@ -25,12 +30,14 @@ interface ProductPreviewDialogProps {
 }
 
 /**
- * 商品预览弹窗：展示轮播图与商品核心信息。
+ * 商品预览弹窗：展示轮播图与商品核心信息；若传入 snapshot 则展示下单快照而非实时商品库数据。
  */
 export function ProductPreviewDialog({
   open,
   order,
   detail,
+  snapshot = null,
+  expectsSnapshot = false,
   loading,
   error,
   onClose,
@@ -38,20 +45,23 @@ export function ProductPreviewDialog({
   formatTime,
 }: ProductPreviewDialogProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0)
+  const useSnapshot = Boolean(snapshot)
 
   /**
-   * 弹窗轮播图列表：优先详情图，缺省时回退订单首图。
+   * 弹窗轮播图列表：快照模式用快照详情图；否则优先商品详情图，缺省时回退订单首图。
    */
   const previewImages = useMemo(() => {
+    if (snapshot?.detailImages?.length) return snapshot.detailImages
+    if (snapshot?.coverUrl) return [snapshot.coverUrl]
     if (detail?.detailImages?.length) return detail.detailImages
     if (order?.productCover) return [order.productCover]
     return []
-  }, [detail, order])
+  }, [snapshot, detail, order])
 
   useEffect(() => {
     if (!open) return
     setActiveImageIndex(0)
-  }, [open, order?.orderNo, detail?.id])
+  }, [open, order?.orderNo, detail?.id, snapshot?.productId])
 
   useEffect(() => {
     if (!open || previewImages.length <= 1) return
@@ -84,7 +94,9 @@ export function ProductPreviewDialog({
         aria-label="商品信息弹窗"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
-          <h3 className="text-lg font-medium text-foreground">商品信息</h3>
+          <h3 className="text-lg font-medium text-foreground">
+            {useSnapshot || (expectsSnapshot && loading) ? '商品信息（下单快照）' : '商品信息'}
+          </h3>
           <Button type="button" variant="ghost" size="icon" className="size-8 rounded-md text-muted-foreground hover:text-foreground" onClick={onClose} aria-label="关闭弹窗">
             <X className="size-4" />
           </Button>
@@ -114,7 +126,7 @@ export function ProductPreviewDialog({
               {previewImages.length > 0 ? (
                 <img
                   src={resolveProductCoverSrc(previewImages[activeImageIndex] || previewImages[0])}
-                  alt={detail?.title || order.productName || '商品图'}
+                  alt={snapshot?.title || detail?.title || order.productName || '商品图'}
                   className="size-full object-cover transition-all duration-500"
                 />
               ) : (
@@ -150,43 +162,87 @@ export function ProductPreviewDialog({
 
         <div className="rounded-xl border border-border bg-white p-4">
           <p className="mb-3 line-clamp-2 text-[15px] font-medium text-foreground">
-            {detail?.title || order.productName || '—'}
+            {snapshot?.title || detail?.title || order.productName || '—'}
           </p>
           <div className="mb-3 grid grid-cols-2 gap-2 text-sm">
-            <div className="rounded-md bg-slate-50 px-3 py-2">
-              <p className="text-xs text-muted-foreground">价格</p>
-              <p className="font-mono text-[#ff4400]">¥{Number(detail?.price ?? order.totalAmount).toFixed(2)}</p>
-            </div>
-            <div className="rounded-md bg-slate-50 px-3 py-2">
-              <p className="text-xs text-muted-foreground">库存 / 销量</p>
-              <p className="text-foreground">{Number(detail?.stock ?? 0)} / {Number(detail?.soldCount ?? 0)}</p>
-            </div>
-            <div className="rounded-md bg-slate-50 px-3 py-2">
-              <p className="text-xs text-muted-foreground">下单用户</p>
-              <p className="truncate text-foreground">{order.username}（ID: {order.userId}）</p>
-            </div>
-            <div className="rounded-md bg-slate-50 px-3 py-2">
-              <p className="text-xs text-muted-foreground">下单时间</p>
-              <p className="truncate text-foreground">{formatTime(order.createdAt)}</p>
-            </div>
+            {useSnapshot && snapshot ? (
+              <>
+                <div className="rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">下单单价</p>
+                  <p className="font-mono text-[#ff4400]">¥{Number(snapshot.unitPrice).toFixed(2)}</p>
+                </div>
+                <div className="rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">购买数量</p>
+                  <p className="text-foreground">{Number(snapshot.purchaseQuantity)}</p>
+                </div>
+                <div className="col-span-2 rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">该商品行小计（快照）</p>
+                  <p className="font-mono text-foreground">¥{Number(snapshot.lineSubtotal).toFixed(2)}</p>
+                </div>
+                <div className="rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">下单用户</p>
+                  <p className="truncate text-foreground">{order.username}（ID: {order.userId}）</p>
+                </div>
+                <div className="rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">下单时间</p>
+                  <p className="truncate text-foreground">{formatTime(order.createdAt)}</p>
+                </div>
+              </>
+            ) : expectsSnapshot && loading ? (
+              <div className="col-span-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-6 text-center text-sm text-muted-foreground">
+                正在读取下单快照…
+              </div>
+            ) : (
+              <>
+                <div className="rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">价格</p>
+                  <p className="font-mono text-[#ff4400]">¥{Number(detail?.price ?? order.totalAmount).toFixed(2)}</p>
+                </div>
+                <div className="rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">库存 / 销量</p>
+                  <p className="text-foreground">{Number(detail?.stock ?? 0)} / {Number(detail?.soldCount ?? 0)}</p>
+                </div>
+                <div className="rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">下单用户</p>
+                  <p className="truncate text-foreground">{order.username}（ID: {order.userId}）</p>
+                </div>
+                <div className="rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">下单时间</p>
+                  <p className="truncate text-foreground">{formatTime(order.createdAt)}</p>
+                </div>
+              </>
+            )}
           </div>
           <div className="space-y-2 border-t border-border pt-3 text-sm">
-            <p>
-              <span className="text-muted-foreground">服务：</span>
-              <span className="text-foreground">{detail?.sevenDayNoReason ? '七天无理由 · 极速发货' : '极速发货'}</span>
-            </p>
+            {useSnapshot || expectsSnapshot ? (
+              <p>
+                <span className="text-muted-foreground">说明：</span>
+                <span className="text-foreground">以下为下单时固化信息，可能与当前商品页不一致。</span>
+              </p>
+            ) : (
+              <p>
+                <span className="text-muted-foreground">服务：</span>
+                <span className="text-foreground">{detail?.sevenDayNoReason ? '七天无理由 · 极速发货' : '极速发货'}</span>
+              </p>
+            )}
             <p>
               <span className="text-muted-foreground">订单号：</span>
               <span className="font-mono text-foreground">{order.orderNo}</span>
             </p>
             <p className="leading-6">
               <span className="text-muted-foreground">详情文案：</span>
-              <span className="text-foreground">{detail?.description || '暂无详细描述'}</span>
+              <span className="text-foreground">
+                {snapshot?.description || detail?.description || '暂无详细描述'}
+              </span>
             </p>
           </div>
         </div>
 
-        {loading ? <p className="mt-3 text-sm text-muted-foreground">商品详情加载中...</p> : null}
+        {loading ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {expectsSnapshot ? '商品快照加载中…' : '商品详情加载中…'}
+          </p>
+        ) : null}
       </div>
     </div>
   )
