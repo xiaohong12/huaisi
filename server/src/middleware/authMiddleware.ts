@@ -33,8 +33,10 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
   }
   try {
     const row = await queryOne<TokenRow>(
-      `SELECT user_id AS user_id FROM user_tokens
-       WHERE token = ? AND is_revoked = 0 AND expires_at > NOW()
+      `SELECT ut.user_id AS user_id
+       FROM user_tokens ut
+       INNER JOIN users u ON u.id = ut.user_id
+       WHERE ut.token = ? AND ut.is_revoked = 0 AND ut.expires_at > NOW() AND u.status = 1
        LIMIT 1`,
       [token]
     );
@@ -60,8 +62,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   try {
     const row = await queryOne<TokenRow>(
-      `SELECT user_id AS user_id FROM user_tokens
-       WHERE token = ? AND is_revoked = 0 AND expires_at > NOW()
+      `SELECT ut.user_id AS user_id
+       FROM user_tokens ut
+       INNER JOIN users u ON u.id = ut.user_id
+       WHERE ut.token = ? AND ut.is_revoked = 0 AND ut.expires_at > NOW() AND u.status = 1
        LIMIT 1`,
       [token]
     );

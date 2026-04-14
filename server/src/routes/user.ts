@@ -5,7 +5,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { execute, query, queryOne } from "../db";
 import { requireAuth } from "../middleware/authMiddleware";
 import { successResponse, errorResponse } from "../utils/response";
-import { resolveStoredImageToBase64DataUrl } from "../utils/imageMedia";
+import { resolveStoredAvatarForClient } from "../utils/imageMedia";
 
 const router = Router();
 
@@ -278,7 +278,7 @@ function isStrongPassword(value: string): boolean {
 
 /**
  * GET /api/user/profile
- * 获取当前登录用户资料摘要（头像为本地 image/test 文件时转为 data URL），供个人中心每次进入/返回时刷新展示。
+ * 获取当前登录用户资料摘要（本地头像转 data URL，http/https 外链保持原值），供个人中心每次进入/返回时刷新展示。
  */
 router.get("/profile", requireAuth, async (req: Request, res: Response) => {
   try {
@@ -295,7 +295,7 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
       errorResponse(res, "用户不存在", 404);
       return;
     }
-    const avatarDisplay = await resolveStoredImageToBase64DataUrl(row.avatar ?? "");
+    const avatarDisplay = await resolveStoredAvatarForClient(row.avatar ?? "");
     successResponse(
       res,
       {
@@ -347,7 +347,7 @@ router.put("/profile", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const avatarDisplay = await resolveStoredImageToBase64DataUrl(row.avatar ?? "");
+    const avatarDisplay = await resolveStoredAvatarForClient(row.avatar ?? "");
     successResponse(
       res,
       {

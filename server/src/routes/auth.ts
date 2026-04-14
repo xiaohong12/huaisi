@@ -6,7 +6,7 @@ import { execute, queryOne } from '../db';
 import { requireAuth } from '../middleware/authMiddleware';
 import { successResponse } from '../utils/response';
 import config from '../config';
-import { resolveStoredImageToBase64DataUrl } from '../utils/imageMedia';
+import { resolveStoredAvatarForClient } from '../utils/imageMedia';
 
 const router = Router();
 const TOKEN_EXPIRE_DAYS = 7;
@@ -25,6 +25,7 @@ interface UserLoginRow extends RowDataPacket {
   avatar: string;
   gender: 'male' | 'female' | 'unknown';
   password: string;
+  status: number;
 }
 
 interface WechatMiniLoginBody {
@@ -80,7 +81,7 @@ function getTokenExpireAt(): string {
 
 /**
  * 为指定用户签发 token 并写入 user_tokens，单端登录会覆盖旧 token。
- * 返回的 user.avatar 为 data URL 或外链转成的 data URL，便于小程序展示本地 image/test 头像。
+ * 返回的 user.avatar 规则：本地 image/test 转 data URL；http/https 外链保持原值。
  */
 async function issueLoginToken(user: Pick<UserLoginRow, 'id' | 'username' | 'nickname' | 'avatar' | 'gender'>) {
   const token = generateToken();
@@ -94,7 +95,7 @@ async function issueLoginToken(user: Pick<UserLoginRow, 'id' | 'username' | 'nic
        is_revoked = 0`,
     [user.id, token, expiresAt]
   );
-  const avatarDisplay = await resolveStoredImageToBase64DataUrl(user.avatar ?? '');
+  const avatarDisplay = await resolveStoredAvatarForClient(user.avatar ?? '');
   return {
     token,
     expiresAt,
@@ -144,12 +145,15 @@ router.post('/login', async (req: Request<unknown, unknown, LoginBody>, res: Res
     }
 
     const user = await queryOne<UserLoginRow>(
-      'SELECT id, username, openid, nickname, avatar, gender, password FROM users WHERE phone = ? LIMIT 1',
+      'SELECT id, username, openid, nickname, avatar, gender, password, status FROM users WHERE phone = ? LIMIT 1',
       [phone]
     );
-
     if (!user) {
       successResponse(res, null, '手机号或密码错误', 401, 401);
+      return;
+    }
+    if (Number(user.status) !== 1) {
+      successResponse(res, null, '账号已被拉黑，请联系管理员', 403, 403);
       return;
     }
 
@@ -192,7 +196,7 @@ router.post('/wechat-mini-login', async (req: Request<unknown, unknown, WechatMi
     }
 
     let user = await queryOne<UserLoginRow>(
-      'SELECT id, username, openid, nickname, avatar, gender, password FROM users WHERE openid = ? LIMIT 1',
+      'SELECT id, username, openid, nickname, avatar, gender, password, status FROM users WHERE openid = ? LIMIT 1',
       [wxData.openid]
     );
 
@@ -209,7 +213,7 @@ router.post('/wechat-mini-login', async (req: Request<unknown, unknown, WechatMi
       );
 
       user = await queryOne<UserLoginRow>(
-        'SELECT id, username, openid, nickname, avatar, gender, password FROM users WHERE openid = ? LIMIT 1',
+        'SELECT id, username, openid, nickname, avatar, gender, password, status FROM users WHERE openid = ? LIMIT 1',
         [wxData.openid]
       );
     } else {
@@ -227,6 +231,10 @@ router.post('/wechat-mini-login', async (req: Request<unknown, unknown, WechatMi
 
     if (!user) {
       successResponse(res, null, '微信用户创建失败', 500, 500);
+      return;
+    }
+    if (Number(user.status) !== 1) {
+      successResponse(res, null, '账号已被拉黑，请联系管理员', 403, 403);
       return;
     }
 

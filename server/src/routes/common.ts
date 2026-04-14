@@ -5,7 +5,7 @@ import multer from 'multer';
 import type { RowDataPacket } from 'mysql2/promise';
 import { successResponse } from '../utils/response';
 import { query } from '../db';
-import { batchResolveStoredImagesToDataUrls, getMimeTypeByExt, TEST_IMAGE_DIR } from '../utils/imageMedia';
+import { batchResolveStoredAvatarsForClient, getMimeTypeByExt, TEST_IMAGE_DIR } from '../utils/imageMedia';
 
 const router = Router();
 const uploadDir = TEST_IMAGE_DIR;
@@ -77,14 +77,14 @@ router.get('/test', (_req: Request, res: Response) => {
 });
 
 /**
- * 查询用户表全部数据并返回给前端展示；avatar 为本地图时转为 Base64 data URL。
+ * 查询用户表全部数据并返回给前端展示；avatar 规则：本地 image/test 转 Base64，http/https 外链原样返回。
  */
 router.get('/users', async (_req: Request, res: Response) => {
   try {
     const rows = await query<UserRow[]>(
       'SELECT id, username, nickname, phone, avatar, gender, created_at FROM users ORDER BY id ASC'
     );
-    const avatarMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.avatar));
+    const avatarMap = await batchResolveStoredAvatarsForClient(rows.map((r) => r.avatar));
     const payload = rows.map((r) => {
       const k = r.avatar ?? '';
       return {

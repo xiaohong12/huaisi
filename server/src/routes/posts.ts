@@ -6,6 +6,7 @@ import { successResponse } from "../utils/response";
 import { optionalAuth, requireAuth } from "../middleware/authMiddleware";
 import { isPublishSectionKey, SECTION_NAME_BY_KEY, type PublishSectionKey } from "../constants/publishSection";
 import {
+  batchResolveStoredAvatarsForClient,
   batchResolveStoredImagesToDataUrls,
   normalizeImageRefForStorage,
   resolveStoredImageToBase64DataUrl,
@@ -239,7 +240,7 @@ async function getPostFeedItemById(
   const base64Map = await resolveImageMapToBase64(imageMap);
   const imageUrls = base64Map.get(postId) ?? [];
   const avKey = row.avatar ?? "";
-  const avatarMap = await batchResolveStoredImagesToDataUrls([avKey]);
+  const avatarMap = await batchResolveStoredAvatarsForClient([avKey]);
   const avatarDisplay = avatarMap.get(avKey) ?? avKey;
   let liked = false;
   let favorited = false;
@@ -287,7 +288,7 @@ async function listFeedHandler(req: Request, res: Response): Promise<void> {
     const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
     const imageMap = await buildImageMapForIds(ids);
     const base64Map = await resolveImageMapToBase64(imageMap);
-    const avatarMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.avatar));
+    const avatarMap = await batchResolveStoredAvatarsForClient(rows.map((r) => r.avatar));
 
     const viewerId = req.userId;
     let likedSet = new Set<number>();
@@ -361,7 +362,7 @@ async function listMyFavoritePostsHandler(req: Request, res: Response): Promise<
     const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
     const imageMap = await buildImageMapForIds(ids);
     const base64Map = await resolveImageMapToBase64(imageMap);
-    const avatarMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.avatar));
+    const avatarMap = await batchResolveStoredAvatarsForClient(rows.map((r) => r.avatar));
 
     let likedSet = new Set<number>();
     let favoritedSet = new Set<number>();
@@ -430,7 +431,7 @@ async function listMyPublishedPostsHandler(req: Request, res: Response): Promise
     const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
     const imageMap = await buildImageMapForIds(ids);
     const base64Map = await resolveImageMapToBase64(imageMap);
-    const avatarMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.avatar));
+    const avatarMap = await batchResolveStoredAvatarsForClient(rows.map((r) => r.avatar));
 
     let likedSet = new Set<number>();
     let favoritedSet = new Set<number>();

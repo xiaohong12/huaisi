@@ -155,3 +155,56 @@ export async function batchResolveStoredImagesToDataUrls(
   );
   return map;
 }
+
+/**
+ * 头像返回专用解析：
+ * - 本地 image/test 文件转为 Base64；
+ * - http/https 外链保持原样返回；
+ * - 其余值原样返回。
+ */
+export async function resolveStoredAvatarForClient(stored: string): Promise<string> {
+  const s = stored.trim();
+  if (!s) {
+    return "";
+  }
+  if (s.startsWith("data:image")) {
+    return s;
+  }
+  if (/^https?:\/\//i.test(s)) {
+    return s;
+  }
+  const fname = extractTestFilename(s);
+  if (fname) {
+    const filePath = path.join(TEST_IMAGE_DIR, fname);
+    if (fs.existsSync(filePath)) {
+      const buf = fs.readFileSync(filePath);
+      const ext = path.extname(filePath);
+      const mime = getMimeTypeByExt(ext);
+      return `data:${mime};base64,${buf.toString("base64")}`;
+    }
+  }
+  return s;
+}
+
+/**
+ * 批量头像解析：规则同 resolveStoredAvatarForClient，按输入去重后并行处理。
+ */
+export async function batchResolveStoredAvatarsForClient(
+  refs: Iterable<string | null | undefined>
+): Promise<Map<string, string>> {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const r of refs) {
+    const k = r == null ? "" : String(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    keys.push(k);
+  }
+  const map = new Map<string, string>();
+  await Promise.all(
+    keys.map(async (k) => {
+      map.set(k, await resolveStoredAvatarForClient(k));
+    })
+  );
+  return map;
+}
