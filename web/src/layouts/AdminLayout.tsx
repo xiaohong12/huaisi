@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, ShoppingCart, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, Users, ShoppingCart, MessageSquare, Package } from 'lucide-react'
 import { clearAdminToken, getAdminToken } from '../auth/adminToken'
 import { getApiBase } from '../config'
 import './AdminLayout.css'
@@ -80,6 +80,10 @@ export function AdminLayout() {
           <NavLink to="/" end className={navClass}>
             <LayoutDashboard className="admin-layout__nav-icon" />
             工作台
+          </NavLink>
+          <NavLink to="/products" className={navClass}>
+            <Package className="admin-layout__nav-icon" />
+            商品中心
           </NavLink>
           <NavLink to="/users" className={navClass}>
             <Users className="admin-layout__nav-icon" />

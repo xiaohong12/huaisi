@@ -5,6 +5,7 @@ import { ContentOpsPage } from './pages/ContentOpsPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { MallOrdersPage } from './pages/MallOrdersPage'
+import { ProductCenterPage } from './pages/ProductCenterPage'
 import { UsersAdminPage } from './pages/UsersAdminPage'
 
 /**
@@ -24,6 +25,7 @@ function App() {
           }
         >
           <Route index element={<HomePage />} />
+          <Route path="products" element={<ProductCenterPage />} />
           <Route path="users" element={<UsersAdminPage />} />
           <Route path="orders" element={<MallOrdersPage />} />
           <Route path="posts" element={<ContentOpsPage />} />
