@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import type { RowDataPacket } from 'mysql2/promise';
 import { execute, query, queryOne } from '../db';
 import { requireAdminAuth } from '../middleware/adminAuthMiddleware';
-import { batchResolveStoredImagesToDataUrls, normalizeImageRefForStorage } from '../utils/imageMedia';
+import { normalizeImageRefForStorage } from '../utils/imageMedia';
 import { successResponse } from '../utils/response';
 
 const router = Router();
@@ -60,6 +60,21 @@ function toAspectNumber(raw: string | number): number {
 }
 
 /**
+ * 面向管理端输出图片地址：
+ * - test/xxx 统一补齐为 /image/test/xxx；
+ * - /image/test/xxx、http/https、data:image 保持原样；
+ * - 其余值按原样透传，避免意外改写外部路径。
+ */
+function toProductImageClientRef(raw: string): string {
+  const s = raw.trim();
+  if (!s) return '';
+  if (s.startsWith('test/')) {
+    return `/image/${s}`;
+  }
+  return s;
+}
+
+/**
  * 统一规范化商品图片引用：
  * - data:image/...;base64,xxx 会落盘到 image/test 并转为 test/xxx；
  * - 已有 test/xxx 或 /image/test/xxx 会校验后保留；
@@ -79,7 +94,7 @@ async function normalizeProductImageInputs(payload: {
 
 /**
  * GET /api/admin/products
- * 管理后台商品列表：支持分页、关键词与上下架状态筛选，返回 mall_products 表核心字段。
+ * 管理后台商品列表：支持分页、关键词与上下架状态筛选，图片字段返回原始引用（不转 Base64）。
  */
 router.get('/', requireAdminAuth, async (req: Request, res: Response) => {
   try {
@@ -143,9 +158,6 @@ router.get('/', requireAdminAuth, async (req: Request, res: Response) => {
       LIMIT ${safeLimit} OFFSET ${safeOffset}
     `;
     const rows = await query<AdminProductListRow[]>(listSql, params.length > 0 ? params : undefined);
-    const coverMap = await batchResolveStoredImagesToDataUrls(rows.map((row) => row.cover_url));
-    const detailImageRefs = rows.flatMap((row) => parseDetailImages(row.detail_images));
-    const detailImageMap = await batchResolveStoredImagesToDataUrls(detailImageRefs);
 
     successResponse(
       res,
@@ -159,9 +171,9 @@ router.get('/', requireAdminAuth, async (req: Request, res: Response) => {
             price: toMoneyNumber(row.price),
             soldCount: Number(row.sold_count) || 0,
             stock: Number(row.stock) || 0,
-            coverUrl: coverMap.get(coverKey) ?? coverKey,
+            coverUrl: toProductImageClientRef(coverKey),
             coverAspect: toAspectNumber(row.cover_aspect),
-            detailImages: detailRefs.map((ref) => detailImageMap.get(ref) ?? ref),
+            detailImages: detailRefs.map((ref) => toProductImageClientRef(ref)),
             description: row.description?.trim() || '',
             status: Number(row.status) === 0 ? 0 : 1,
             sevenDayNoReason: Number(row.seven_day_no_reason) === 1,

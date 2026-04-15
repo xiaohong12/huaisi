@@ -51,6 +51,8 @@ app.use('/image', (_req: Request, res: Response, next: NextFunction) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'X-Requested-With');
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  /** 允许不同源页面直接使用 <img src="http://127.0.0.1:7001/image/..."> 加载本地图片 */
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 }, express.static(path.resolve(__dirname, '../image')));
 

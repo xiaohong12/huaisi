@@ -3,6 +3,9 @@ import { Search, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X } from 'luci
 import type { AdminProductListItem, CreateAdminProductBody } from '@/api/adminProducts'
 import { createAdminProduct, deleteAdminProduct, fetchAdminProductList, updateAdminProduct } from '@/api/adminProducts'
 import { getApiBase } from '@/config'
+import Lightbox from 'yet-another-react-lightbox'
+import Zoom from 'yet-another-react-lightbox/plugins/zoom'
+import 'yet-another-react-lightbox/styles.css'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -488,7 +491,7 @@ export function ProductCenterPage() {
                             <div className="size-10 shrink-0 rounded-md border border-dashed border-border bg-muted/40" />
                           )}
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+                            <p className="truncate text-sm font-bold text-green-500! dark:text-green-400!">{item.title}</p>
                             <p className="truncate text-xs text-muted-foreground">
                               {item.description?.trim() || '无详情描述'}
                             </p>
@@ -706,15 +709,26 @@ export function ProductCenterPage() {
                     选择封面图
                   </Button>
                   {createForm.coverImage ? (
-                    <button
-                      type="button"
-                      className="relative size-14 overflow-hidden rounded-md border border-border"
-                      onClick={() =>
-                        openPreview([createForm.coverImage], 0, `${editingProductId === null ? '新增' : '编辑'}商品封面`)
-                      }
-                    >
-                      <img src={resolveImageSrc(createForm.coverImage)} alt="封面预览" className="h-full w-full object-cover" />
-                    </button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        className="relative size-14 overflow-hidden rounded-md border border-border"
+                        onClick={() =>
+                          openPreview([createForm.coverImage], 0, `${editingProductId === null ? '新增' : '编辑'}商品封面`)
+                        }
+                      >
+                        <img src={resolveImageSrc(createForm.coverImage)} alt="封面预览" className="h-full w-full object-cover" />
+                      </button>
+                      <button
+                        type="button"
+                        className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-black/75 text-white"
+                        onClick={() => setCreateForm((prev) => ({ ...prev, coverImage: '' }))}
+                        aria-label="删除封面图"
+                        title="删除封面图"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
                   ) : (
                     <span className="text-xs text-muted-foreground">未选择封面图</span>
                   )}
@@ -883,63 +897,30 @@ export function ProductCenterPage() {
         </div>
       ) : null}
 
-      {hasPreview ? (
-        <div
-          className="fixed inset-0 z-70 flex items-center justify-center bg-black/75 px-4"
-          onClick={() => setPreviewImages([])}
-          role="presentation"
-        >
-          <div
-            className="relative w-full max-w-5xl rounded-xl bg-black/70 p-4"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label={previewTitle || '图片预览'}
-          >
-            <button
-              type="button"
-              className="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-full bg-black/55 text-white hover:bg-black/70"
-              onClick={() => setPreviewImages([])}
-              aria-label="关闭预览"
-            >
-              <X className="size-4" />
-            </button>
-            <div className="mb-3 flex items-center justify-between px-1 text-sm text-white/90">
-              <span>{previewTitle || '图片预览'}</span>
-              <span>
-                {previewIndex + 1} / {previewImages.length}
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 rounded-md border-white/30 bg-transparent px-3 text-white hover:bg-white/10"
-                onClick={() =>
-                  setPreviewIndex((idx) => (idx - 1 + previewImages.length) % previewImages.length)
-                }
-              >
-                上一张
-              </Button>
-              <div className="flex-1 overflow-hidden rounded-lg border border-white/20 bg-black/50">
-                <img
-                  src={currentPreview}
-                  alt={`预览图${previewIndex + 1}`}
-                  className="mx-auto max-h-[70vh] w-auto object-contain"
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 rounded-md border-white/30 bg-transparent px-3 text-white hover:bg-white/10"
-                onClick={() => setPreviewIndex((idx) => (idx + 1) % previewImages.length)}
-              >
-                下一张
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {/* 使用第三方 Lightbox 承载预览/缩放/左右切换，避免手写弹层交互细节。 */}
+      <Lightbox
+        open={hasPreview}
+        close={() => setPreviewImages([])}
+        index={previewIndex}
+        slides={previewImages.map((src) => ({ src }))}
+        plugins={[Zoom]}
+        zoom={{
+          maxZoomPixelRatio: 4,
+          zoomInMultiplier: 2,
+          scrollToZoom: true,
+        }}
+        toolbar={{
+          buttons: ['zoomIn', 'zoomOut', 'close'],
+        }}
+        on={{
+          view: ({ index }) => setPreviewIndex(index),
+        }}
+        labels={{
+          Next: '下一张',
+          Previous: '上一张',
+          Close: '关闭',
+        }}
+      />
     </div>
   )
 }
