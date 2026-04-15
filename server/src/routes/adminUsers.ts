@@ -3,7 +3,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { execute, query, queryOne } from '../db';
 import { requireAdminAuth } from '../middleware/adminAuthMiddleware';
 import { successResponse } from '../utils/response';
-import { batchResolveStoredAvatarsForClient } from '../utils/imageMedia';
+import { batchResolveStoredImagesToClientPaths } from '../utils/imageMedia';
 
 const router = Router();
 
@@ -78,8 +78,8 @@ router.get('/', requireAdminAuth, async (req: Request, res: Response) => {
     const listSql = `SELECT id, username, nickname, phone, openid, avatar, gender, status, created_at FROM users ${whereSql} ORDER BY id DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
     const rows = await query<UserListRow[]>(listSql, whereParams.length > 0 ? whereParams : undefined);
 
-    /** 头像返回规则：本地 image/test 转 base64；http/https 外链原样返回。 */
-    const avatarMap = await batchResolveStoredAvatarsForClient(rows.map((r) => r.avatar));
+    /** 头像返回规则：本地 image/test 统一返回 /image/test 路径；外链保持原样。 */
+    const avatarMap = await batchResolveStoredImagesToClientPaths(rows.map((r) => r.avatar));
 
     successResponse(
       res,

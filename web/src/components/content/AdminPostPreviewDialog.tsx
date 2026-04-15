@@ -44,7 +44,7 @@ function formatTime(iso: string): string {
   }
 }
 
-function resolveAvatarSrc(raw: string): string {
+function resolveImageSrc(raw: string): string {
   if (!raw) return ''
   if (raw.startsWith('data:image') || raw.startsWith('http://') || raw.startsWith('https://')) {
     return raw
@@ -107,7 +107,7 @@ export function AdminPostPreviewDialog({ postId, onClose }: AdminPostPreviewDial
     if (!post?.imageUrls?.length) {
       return [] as string[]
     }
-    return post.imageUrls
+    return post.imageUrls.map((src) => resolveImageSrc(src))
   }, [post?.imageUrls])
 
   const isSingleImage = displayImages.length === 1
@@ -115,7 +115,7 @@ export function AdminPostPreviewDialog({ postId, onClose }: AdminPostPreviewDial
   const letter = nick.slice(0, 1) || '?'
   const tag = post?.sectionName?.trim() || '帖子'
   const { tagBg, tagColor } = sectionTagStyle(tag)
-  const avatarSrc = post?.avatar ? resolveAvatarSrc(post.avatar) : ''
+  const avatarSrc = post?.avatar ? resolveImageSrc(post.avatar) : ''
 
   if (!open) return null
 

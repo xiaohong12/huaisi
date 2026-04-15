@@ -157,6 +157,45 @@ export async function batchResolveStoredImagesToDataUrls(
 }
 
 /**
+ * 将库内图片引用解析为前端可访问路径：
+ * - 本地 test 图片统一返回 `/image/test/<文件名>`；
+ * - http/https 外链保持原样；
+ * - data:image 或其他非本地格式保持原样透传。
+ */
+export function resolveStoredImageToClientPath(stored: string): string {
+  const s = stored.trim();
+  if (!s) {
+    return "";
+  }
+  const fname = extractTestFilename(s);
+  if (fname) {
+    return `/image/test/${fname}`;
+  }
+  return s;
+}
+
+/**
+ * 批量将图片引用解析为前端可访问路径，按输入去重并并行处理。
+ */
+export async function batchResolveStoredImagesToClientPaths(
+  refs: Iterable<string | null | undefined>
+): Promise<Map<string, string>> {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const r of refs) {
+    const k = r == null ? "" : String(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    keys.push(k);
+  }
+  const map = new Map<string, string>();
+  for (const k of keys) {
+    map.set(k, resolveStoredImageToClientPath(k));
+  }
+  return map;
+}
+
+/**
  * 头像返回专用解析：
  * - 本地 image/test 文件转为 Base64；
  * - http/https 外链保持原样返回；

@@ -4,7 +4,7 @@ import type { SqlParams } from '../db';
 import { execute, query, queryOne } from '../db';
 import { requireAdminAuth } from '../middleware/adminAuthMiddleware';
 import { successResponse } from '../utils/response';
-import { batchResolveStoredAvatarsForClient, resolveStoredImageToBase64DataUrl } from '../utils/imageMedia';
+import { batchResolveStoredImagesToClientPaths } from '../utils/imageMedia';
 
 const router = Router();
 
@@ -109,12 +109,13 @@ async function buildImageMapForIds(postIds: number[]): Promise<Map<number, strin
 }
 
 /**
- * 将帖子配图批量转为 Base64 data URL（与首页信息流接口返回格式一致，便于管理端直接 img 展示）。
+ * 将帖子配图批量转为前端可访问地址（本地图统一输出 /image/test 路径）。
  */
-async function resolveImageMapToBase64(imageMap: Map<number, string[]>): Promise<Map<number, string[]>> {
+async function resolveImageMapToClientPaths(imageMap: Map<number, string[]>): Promise<Map<number, string[]>> {
   const out = new Map<number, string[]>();
   for (const [pid, urls] of imageMap) {
-    const resolved = await Promise.all(urls.map((u) => resolveStoredImageToBase64DataUrl(u)));
+    const resolvedMap = await batchResolveStoredImagesToClientPaths(urls);
+    const resolved = urls.map((u) => resolvedMap.get(u) ?? u);
     out.set(pid, resolved);
   }
   return out;
@@ -217,7 +218,7 @@ router.get('/', requireAdminAuth, async (req: Request, res: Response) => {
 /**
  * GET /api/admin/posts/:postId
  * 管理后台：单帖详情 + 可见评论列表（只读）；不限制帖子 status，草稿/隐藏/已删帖仍可被运营查看。
- * 帖子主体字段与小程序首页信息流 DTO 对齐（含配图 Base64）；评论结构与 GET /api/posts/:id/comments 一致。
+ * 帖子主体字段与小程序首页信息流 DTO 对齐（含配图路径）；评论结构与 GET /api/posts/:id/comments 一致。
  * 鉴权：Header `Authorization: Bearer <admin token>`。
  */
 router.get('/:postId', requireAdminAuth, async (req: Request, res: Response) => {
@@ -245,10 +246,10 @@ router.get('/:postId', requireAdminAuth, async (req: Request, res: Response) => 
     }
 
     const imageMap = await buildImageMapForIds([postId]);
-    const base64Map = await resolveImageMapToBase64(imageMap);
-    const imageUrls = base64Map.get(postId) ?? [];
+    const imagePathMap = await resolveImageMapToClientPaths(imageMap);
+    const imageUrls = imagePathMap.get(postId) ?? [];
     const avKey = row.avatar ?? '';
-    const avatarMap = await batchResolveStoredAvatarsForClient([avKey]);
+    const avatarMap = await batchResolveStoredImagesToClientPaths([avKey]);
     const avatarDisplay = avatarMap.get(avKey) ?? avKey;
 
     const limitRaw = parseInt(String(req.query.commentLimit ?? '80'), 10) || 80;

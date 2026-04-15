@@ -3,7 +3,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import type { PoolConnection } from 'mysql2/promise';
 import { query, queryOne, transaction } from '../db';
 import { requireAdminAuth } from '../middleware/adminAuthMiddleware';
-import { batchResolveStoredImagesToDataUrls } from '../utils/imageMedia';
+import { batchResolveStoredImagesToClientPaths } from '../utils/imageMedia';
 import { successResponse } from '../utils/response';
 
 const router = Router();
@@ -206,7 +206,7 @@ router.get(
       const detailImages = parseSnapshotDetailImages(row.detail_images_json);
       const coverKey = row.product_cover_url ?? '';
       const imageKeys = [coverKey, ...detailImages];
-      const resolvedMap = await batchResolveStoredImagesToDataUrls(imageKeys);
+      const resolvedMap = await batchResolveStoredImagesToClientPaths(imageKeys);
 
       const coverResolved = resolvedMap.get(coverKey) ?? coverKey;
       const detailResolved = detailImages.map((k) => resolvedMap.get(k) ?? k);
@@ -309,7 +309,7 @@ router.get('/', requireAdminAuth, async (req: Request, res: Response) => {
       whereParams.length > 0 ? whereParams : undefined
     );
 
-    const firstCoverMap = await batchResolveStoredImagesToDataUrls(rows.map((r) => r.first_cover));
+    const firstCoverMap = await batchResolveStoredImagesToClientPaths(rows.map((r) => r.first_cover));
 
     successResponse(
       res,
