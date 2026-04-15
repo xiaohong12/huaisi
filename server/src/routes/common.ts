@@ -5,7 +5,7 @@ import multer from 'multer';
 import type { RowDataPacket } from 'mysql2/promise';
 import { successResponse } from '../utils/response';
 import { query } from '../db';
-import { batchResolveStoredAvatarsForClient, getMimeTypeByExt, TEST_IMAGE_DIR } from '../utils/imageMedia';
+import { batchResolveStoredAvatarsForClient, TEST_IMAGE_DIR } from '../utils/imageMedia';
 
 const router = Router();
 const uploadDir = TEST_IMAGE_DIR;
@@ -43,26 +43,6 @@ const upload = multer({ storage });
 const REMOTE_IMAGE_URL = 'https://img1.baidu.com/it/u=2456334644,3378803144&fm=253&app=120&f=JPEG?w=800&h=1422';
 
 /**
- * 拉取预置远程示例图并转为 data URL，供多个测试接口复用。
- */
-const loadRemoteSampleImageBase64 = async (): Promise<string> => {
-  const response = await fetch(REMOTE_IMAGE_URL, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-      Referer: 'https://www.baidu.com/',
-      Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`远程图片下载失败: ${response.status}`);
-  }
-  const imageBuffer = Buffer.from(await response.arrayBuffer());
-  const contentType = response.headers.get('content-type') || 'image/jpeg';
-  return `data:${contentType};base64,${imageBuffer.toString('base64')}`;
-};
-
-/**
  * 测试接口：返回服务名称与当前时间。
  */
 router.get('/test', (_req: Request, res: Response) => {
@@ -77,7 +57,7 @@ router.get('/test', (_req: Request, res: Response) => {
 });
 
 /**
- * 查询用户表全部数据并返回给前端展示；avatar 规则：本地 image/test 转 Base64，http/https 外链原样返回。
+ * 查询用户表全部数据并返回给前端展示；avatar 规则：本地 image/test 返回 /image/test 路径，http/https 外链原样返回。
  */
 router.get('/users', async (_req: Request, res: Response) => {
   try {
@@ -105,41 +85,27 @@ router.get('/users', async (_req: Request, res: Response) => {
 });
 
 const imageFilePath = path.resolve(__dirname, '../../image/test/image-display.jpg');
-let cachedImageBase64 = '';
 
 /**
- * 读取并缓存展示图片的 Base64，避免重复磁盘读取。
- */
-const getImageBase64 = (): string => {
-  if (cachedImageBase64) {
-    return cachedImageBase64;
-  }
-
-  const buffer = fs.readFileSync(imageFilePath);
-  cachedImageBase64 = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-  return cachedImageBase64;
-};
-
-/**
- * 获取后台预置图片的 Base64 数据。
+ * 获取后台预置图片地址：若本地示例图存在则返回 /image/test/image-display.jpg。
  */
 router.get('/image-url', (_req: Request, res: Response) => {
+  const imageUrl = fs.existsSync(imageFilePath) ? '/image/test/image-display.jpg' : '';
   successResponse(
     res,
     {
-      imageBase64: getImageBase64()
+      imageUrl
     },
-    '图片Base64获取成功'
+    '图片地址获取成功'
   );
 });
 
 /**
- * 远程下载图片接口：从指定 URL 拉取图片并转为 Base64 返回前端展示。
+ * 远程下载图片接口：直接返回可访问的 http(s) 图片地址，不再转 Base64。
  */
 router.get('/remote-image-base64', async (_req: Request, res: Response) => {
   try {
-    const imageBase64 = await loadRemoteSampleImageBase64();
-    successResponse(res, { imageBase64 }, '远程图片Base64获取成功');
+    successResponse(res, { imageUrl: REMOTE_IMAGE_URL }, '远程图片地址获取成功');
   } catch (error) {
     const err = error as Error;
     successResponse(res, null, `远程图片处理失败: ${err.message}`, 500, 500);
@@ -147,12 +113,11 @@ router.get('/remote-image-base64', async (_req: Request, res: Response) => {
 });
 
 /**
- * 远程示例图接口：与 remote-image-base64 一致，统一返回 Base64 数据供前端展示（不再返回外链 URL）。
+ * 远程示例图接口：返回可访问的 http(s) 图片地址。
  */
 router.get('/remote-image-url', async (_req: Request, res: Response) => {
   try {
-    const imageBase64 = await loadRemoteSampleImageBase64();
-    successResponse(res, { imageBase64 }, '远程图片Base64获取成功');
+    successResponse(res, { imageUrl: REMOTE_IMAGE_URL }, '远程图片地址获取成功');
   } catch (error) {
     const err = error as Error;
     successResponse(res, null, `远程图片处理失败: ${err.message}`, 500, 500);
@@ -160,7 +125,7 @@ router.get('/remote-image-url', async (_req: Request, res: Response) => {
 });
 
 /**
- * 上传图片接口：文件保存到 image/test，仅返回文件名与 Base64（不再返回可直链的 URL）。
+ * 上传图片接口：文件保存到 image/test，返回文件名与可访问路径，前端可统一拼接服务地址后展示。
  */
 router.post('/upload-image', upload.single('file'), (req: Request, res: Response) => {
   const file = req.file;
@@ -170,15 +135,11 @@ router.post('/upload-image', upload.single('file'), (req: Request, res: Response
     return;
   }
 
-  const fileBuffer = fs.readFileSync(file.path);
-  const ext = path.extname(file.filename);
-  const imageBase64 = `data:${getMimeTypeByExt(ext)};base64,${fileBuffer.toString('base64')}`;
-
   successResponse(
     res,
     {
       fileName: file.filename,
-      imageBase64,
+      imageUrl: `/image/test/${file.filename}`,
     },
     '上传成功'
   );

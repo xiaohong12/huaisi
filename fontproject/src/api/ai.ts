@@ -142,10 +142,10 @@ export const streamAiChat = (
 
 /**
  * POST /api/ai/generate-avatar
- * 根据文字描述生成头像：返回 avatar（相对路径）与 imageBase64（data URL，便于小程序内直接展示）。
+ * 根据文字描述生成头像：返回 avatar 图片地址（支持 /image 相对路径或 http/https）。
  */
 export const generateAvatarByAiApi = (data: { prompt: string }) => {
-  return request<{ avatar: string; imageBase64: string }>({
+  return request<{ avatar: string }>({
     url: '/api/ai/generate-avatar',
     method: 'POST',
     data: data as Record<string, unknown>,

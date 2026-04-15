@@ -45,7 +45,7 @@ function extractTestFilename(raw: string): string | null {
  * 将发帖时传入的图片引用规范为库内存储格式 `test/<文件名>`。
  * - data URL：写入 image/test 并返回 test/ 引用；
  * - 已是本服务 test 目录文件：校验存在后返回 test/ 引用；
- * - 外链 URL：原样入库，列表接口再拉取转 Base64。
+ * - 外链 URL：原样入库，列表接口直接返回原始外链。
  */
 export async function normalizeImageRefForStorage(input: string): Promise<string> {
   const s = input.trim();
@@ -87,8 +87,10 @@ export async function normalizeImageRefForStorage(input: string): Promise<string
 }
 
 /**
- * 将库中存储的图片引用转为 data URL（Base64），供前端直接展示。
- * 已是 data URL 则原样返回；本地 test 文件则读盘；外链则尝试 fetch。
+ * 将库中存储的图片引用转为前端可直接访问的图片地址。
+ * - 本地 test 图片：返回 `/image/test/<文件名>`
+ * - http/https 外链：原样返回
+ * - data:image 与其他值：原样透传
  */
 export async function resolveStoredImageToBase64DataUrl(stored: string): Promise<string> {
   const s = stored.trim();
@@ -101,40 +103,18 @@ export async function resolveStoredImageToBase64DataUrl(stored: string): Promise
 
   const fname = extractTestFilename(s);
   if (fname) {
-    const filePath = path.join(TEST_IMAGE_DIR, fname);
-    if (fs.existsSync(filePath)) {
-      const buf = fs.readFileSync(filePath);
-      const ext = path.extname(filePath);
-      const mime = getMimeTypeByExt(ext);
-      return `data:${mime};base64,${buf.toString("base64")}`;
-    }
+    return `/image/test/${fname}`;
   }
 
   if (/^https?:\/\//i.test(s)) {
-    try {
-      const response = await fetch(s, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-          Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-        },
-      });
-      if (!response.ok) {
-        return s;
-      }
-      const buf = Buffer.from(await response.arrayBuffer());
-      const ct = response.headers.get("content-type") || "image/jpeg";
-      return `data:${ct};base64,${buf.toString("base64")}`;
-    } catch {
-      return s;
-    }
+    return s;
   }
 
   return s;
 }
 
 /**
- * 批量将图片引用解析为 data URL，相同字符串只解析一次，减轻列表接口读盘与 fetch 次数。
+ * 批量将图片引用解析为前端可访问路径，相同字符串只解析一次。
  */
 export async function batchResolveStoredImagesToDataUrls(
   refs: Iterable<string | null | undefined>
@@ -197,32 +177,12 @@ export async function batchResolveStoredImagesToClientPaths(
 
 /**
  * 头像返回专用解析：
- * - 本地 image/test 文件转为 Base64；
+ * - 本地 image/test 文件返回 `/image/test/<文件名>`；
  * - http/https 外链保持原样返回；
  * - 其余值原样返回。
  */
 export async function resolveStoredAvatarForClient(stored: string): Promise<string> {
-  const s = stored.trim();
-  if (!s) {
-    return "";
-  }
-  if (s.startsWith("data:image")) {
-    return s;
-  }
-  if (/^https?:\/\//i.test(s)) {
-    return s;
-  }
-  const fname = extractTestFilename(s);
-  if (fname) {
-    const filePath = path.join(TEST_IMAGE_DIR, fname);
-    if (fs.existsSync(filePath)) {
-      const buf = fs.readFileSync(filePath);
-      const ext = path.extname(filePath);
-      const mime = getMimeTypeByExt(ext);
-      return `data:${mime};base64,${buf.toString("base64")}`;
-    }
-  }
-  return s;
+  return resolveStoredImageToBase64DataUrl(stored);
 }
 
 /**

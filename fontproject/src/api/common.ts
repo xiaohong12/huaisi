@@ -11,32 +11,32 @@ export interface CommonTestData {
 }
 
 /**
- * 图片 Base64 接口数据结构。
+ * 图片地址接口数据结构：支持 /image 下相对路径或 http/https 绝对地址。
  */
 export interface CommonImageData {
-  imageBase64: string;
+  imageUrl: string;
 }
 
 /**
- * 远程下载图片 Base64 接口数据结构。
+ * 远程下载图片接口数据结构：服务端直接返回图片地址。
  */
 export interface RemoteImageData {
-  imageBase64: string;
+  imageUrl: string;
 }
 
 /**
- * 远程示例图接口数据结构（与 remote-image-base64 一致，均为 Base64）。
+ * 远程示例图接口数据结构：服务端直接返回图片地址。
  */
 export interface RemoteImageUrlData {
-  imageBase64: string;
+  imageUrl: string;
 }
 
 /**
- * 上传图片接口数据结构（文件在服务端 image/test，不再返回可直链 URL）。
+ * 上传图片接口数据结构（文件保存在服务端 image/test）。
  */
 export interface UploadImageData {
   fileName: string;
-  imageBase64: string;
+  imageUrl?: string;
 }
 
 /**
@@ -112,7 +112,7 @@ export const getCommonTestApi = (): Promise<ApiResponse<CommonTestData>> => {
 };
 
 /**
- * 调用后端图片接口，获取预置图片 Base64 数据。
+ * 调用后端图片接口，获取可直接展示的图片地址。
  */
 export const getCommonImageApi = (): Promise<ApiResponse<CommonImageData>> => {
   return request<CommonImageData>({
@@ -122,7 +122,7 @@ export const getCommonImageApi = (): Promise<ApiResponse<CommonImageData>> => {
 };
 
 /**
- * 调用后端远程下载接口，返回远程图片 Base64。
+ * 调用后端远程下载接口，返回远程图片地址。
  */
 export const getRemoteImageApi = (): Promise<ApiResponse<RemoteImageData>> => {
   return request<RemoteImageData>({
@@ -132,7 +132,7 @@ export const getRemoteImageApi = (): Promise<ApiResponse<RemoteImageData>> => {
 };
 
 /**
- * 调用后端远程示例图接口，返回 Base64 数据（与 getRemoteImageApi 行为一致）。
+ * 调用后端远程示例图接口，返回图片地址（与 getRemoteImageApi 行为一致）。
  */
 export const getRemoteImageUrlApi = (): Promise<ApiResponse<RemoteImageUrlData>> => {
   return request<RemoteImageUrlData>({
@@ -142,7 +142,7 @@ export const getRemoteImageUrlApi = (): Promise<ApiResponse<RemoteImageUrlData>>
 };
 
 /**
- * 上传图片到后端 image/test 目录，返回文件名与 Base64 data URL。
+ * 上传图片到后端 image/test 目录，返回文件名；前端按约定拼接 `/image/test/<fileName>` 使用。
  * @param filePath 小程序临时文件路径
  */
 export const uploadImageApi = (filePath: string): Promise<ApiResponse<UploadImageData>> => {

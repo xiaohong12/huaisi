@@ -278,7 +278,7 @@ function isStrongPassword(value: string): boolean {
 
 /**
  * GET /api/user/profile
- * 获取当前登录用户资料摘要（本地头像转 data URL，http/https 外链保持原值），供个人中心每次进入/返回时刷新展示。
+ * 获取当前登录用户资料摘要（本地头像返回 /image/test 路径，http/https 外链保持原值），供个人中心每次进入/返回时刷新展示。
  */
 router.get("/profile", requireAuth, async (req: Request, res: Response) => {
   try {

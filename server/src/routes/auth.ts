@@ -81,7 +81,7 @@ function getTokenExpireAt(): string {
 
 /**
  * 为指定用户签发 token 并写入 user_tokens，单端登录会覆盖旧 token。
- * 返回的 user.avatar 规则：本地 image/test 转 data URL；http/https 外链保持原值。
+ * 返回的 user.avatar 规则：本地 image/test 返回 /image/test 路径；http/https 外链保持原值。
  */
 async function issueLoginToken(user: Pick<UserLoginRow, 'id' | 'username' | 'nickname' | 'avatar' | 'gender'>) {
   const token = generateToken();

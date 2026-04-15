@@ -52,7 +52,7 @@ export interface PostFeedItemDTO {
   nickname: string;
   avatar: string;
   sectionName: string;
-  /** 帖子配图 data URL（Base64），与后端列表接口一致 */
+  /** 帖子配图地址：本地图片为 /image/...（前端统一补全域名），外链为 http/https */
   imageUrls: string[];
   /** 当前登录用户是否已点赞；未登录时为 false */
   liked: boolean;

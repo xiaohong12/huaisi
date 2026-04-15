@@ -4,7 +4,7 @@ import { Router, Request, Response } from 'express';
 import OpenAI from 'openai';
 import { requireAuth } from '../middleware/authMiddleware';
 import { successResponse, errorResponse } from '../utils/response';
-import { getMimeTypeByExt, TEST_IMAGE_DIR } from '../utils/imageMedia';
+import { TEST_IMAGE_DIR } from '../utils/imageMedia';
 
 const router = Router();
 
@@ -183,7 +183,7 @@ async function fetchPollinationsAvatarImage(prompt: string): Promise<Buffer> {
 /**
  * POST /api/ai/generate-avatar
  * AI 根据文字描述生成用户头像：优先 OpenAI DALL·E，其次 Pollinations；图片写入 image/test。
- * 返回 avatar（相对路径，供写入用户表）与 imageBase64（data URL，供小程序预览，避免局域网 IP 未配置下载域名导致图片加载失败）。
+ * 返回 avatar（相对路径，供写入用户表与前端直接展示）。
  */
 router.post('/generate-avatar', requireAuth, async (req: Request, res: Response) => {
   const userId = Number(req.userId || 0);
@@ -210,7 +210,6 @@ router.post('/generate-avatar', requireAuth, async (req: Request, res: Response)
   let imageBuffer: Buffer;
   try {
     const fromOpenAi = await tryOpenAiAvatarImage(promptForModel.slice(0, 1000));
-    console.log(fromOpenAi)
     if (fromOpenAi) {
       imageBuffer = fromOpenAi;
     } else {
@@ -241,9 +240,7 @@ router.post('/generate-avatar', requireAuth, async (req: Request, res: Response)
   }
 
   const avatar = `/image/test/${fileName}`;
-  const mime = getMimeTypeByExt(path.extname(fileName));
-  const imageBase64 = `data:${mime};base64,${imageBuffer.toString('base64')}`;
-  successResponse(res, { avatar, imageBase64 }, '生成成功');
+  successResponse(res, { avatar }, '生成成功');
 });
 
 export default router;

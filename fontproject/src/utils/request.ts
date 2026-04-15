@@ -30,6 +30,52 @@ export const resolveAssetUrl = (pathOrUrl: string): string => {
 };
 
 /**
+ * 仅处理图片资源字符串：
+ * - http/https、data:image、blob、wxfile 保持原样；
+ * - /image/... 或 image/... 自动补全服务端地址；
+ * - test/... 视为 image 目录下文件，补全为 /image/test/...
+ */
+const normalizeImageAssetString = (raw: string): string => {
+  if (!raw) return raw;
+  const isImageFileRef = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(raw);
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (/^data:image\//i.test(raw)) return raw;
+  if (raw.startsWith("blob:") || raw.startsWith("wxfile://")) return raw;
+  if (raw.startsWith("/image/")) return `${BASE_URL}${raw}`;
+  if (raw.startsWith("image/")) return `${BASE_URL}/${raw}`;
+  if (raw.startsWith("test/") && isImageFileRef) return `${BASE_URL}/image/${raw}`;
+  return raw;
+};
+
+/**
+ * 递归扫描接口响应中的字符串字段，统一处理图片地址。
+ */
+const normalizeImageAssetsDeep = <T>(value: T): T => {
+  const walked = new WeakSet<object>();
+  const walk = (input: unknown): unknown => {
+    if (typeof input === "string") {
+      return normalizeImageAssetString(input);
+    }
+    if (Array.isArray(input)) {
+      return input.map((item) => walk(item));
+    }
+    if (!input || typeof input !== "object") {
+      return input;
+    }
+    if (walked.has(input as object)) {
+      return input;
+    }
+    walked.add(input as object);
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+      out[k] = walk(v);
+    }
+    return out;
+  };
+  return walk(value) as T;
+};
+
+/**
  * 通用请求参数定义。
  */
 interface RequestOptions {
@@ -100,7 +146,7 @@ export const request = <T>(options: RequestOptions): Promise<ApiResponse<T>> => 
       data: requestData as Record<string, unknown> | string | ArrayBuffer,
       header: { ...authHeader, ...jsonHeader, ...header },
       success: (res) => {
-        const payload = res.data as ApiResponse<T>;
+        const payload = normalizeImageAssetsDeep(res.data as ApiResponse<T>);
         const status = res.statusCode ?? 200;
         if (
           shouldClearSessionOn401(url) &&

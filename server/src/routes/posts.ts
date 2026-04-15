@@ -6,10 +6,8 @@ import { successResponse } from "../utils/response";
 import { optionalAuth, requireAuth } from "../middleware/authMiddleware";
 import { isPublishSectionKey, SECTION_NAME_BY_KEY, type PublishSectionKey } from "../constants/publishSection";
 import {
-  batchResolveStoredAvatarsForClient,
-  batchResolveStoredImagesToDataUrls,
+  batchResolveStoredImagesToClientPaths,
   normalizeImageRefForStorage,
-  resolveStoredImageToBase64DataUrl,
 } from "../utils/imageMedia";
 
 const router = Router();
@@ -50,10 +48,10 @@ interface PostFeedItemJson {
   likeCount: number;
   favoriteCount: number;
   nickname: string;
-  /** 作者头像：本地 test 图已转为 data URL；外链经 fetch 转 data URL；无法解析时仍为原字符串 */
+  /** 作者头像：本地 test 图返回 /image/test 路径，http/https 外链原样返回。 */
   avatar: string;
   sectionName: string;
-  /** 帖子配图：均为 data:image/...;base64,... 形式，便于小程序直接绑定展示 */
+  /** 帖子配图：本地 test 图返回 /image/test 路径，http/https 外链原样返回。 */
   imageUrls: string[];
   liked: boolean;
   favorited: boolean;
@@ -156,13 +154,22 @@ async function buildImageMapForIds(postIds: number[]): Promise<Map<number, strin
 }
 
 /**
- * 将帖子 id → 原始图片引用 的映射，批量转为 Base64 data URL（与列表/详情接口返回格式一致）。
+ * 将帖子 id → 原始图片引用 的映射，批量转为前端可直接访问的地址。
+ * - 本地 test 图片：/image/test/<文件名>
+ * - http/https 外链：原样返回
  */
-async function resolveImageMapToBase64(imageMap: Map<number, string[]>): Promise<Map<number, string[]>> {
+async function resolveImageMapToClientPaths(imageMap: Map<number, string[]>): Promise<Map<number, string[]>> {
   const out = new Map<number, string[]>();
+  const allRefs: string[] = [];
+  for (const urls of imageMap.values()) {
+    allRefs.push(...urls);
+  }
+  const refMap = await batchResolveStoredImagesToClientPaths(allRefs);
   for (const [pid, urls] of imageMap) {
-    const resolved = await Promise.all(urls.map((u) => resolveStoredImageToBase64DataUrl(u)));
-    out.set(pid, resolved);
+    out.set(
+      pid,
+      urls.map((u) => refMap.get(u) ?? u)
+    );
   }
   return out;
 }
@@ -237,10 +244,10 @@ async function getPostFeedItemById(
   );
   if (!row) return null;
   const imageMap = await buildImageMapForIds([postId]);
-  const base64Map = await resolveImageMapToBase64(imageMap);
-  const imageUrls = base64Map.get(postId) ?? [];
+  const clientPathMap = await resolveImageMapToClientPaths(imageMap);
+  const imageUrls = clientPathMap.get(postId) ?? [];
   const avKey = row.avatar ?? "";
-  const avatarMap = await batchResolveStoredAvatarsForClient([avKey]);
+  const avatarMap = await batchResolveStoredImagesToClientPaths([avKey]);
   const avatarDisplay = avatarMap.get(avKey) ?? avKey;
   let liked = false;
   let favorited = false;
@@ -263,7 +270,7 @@ function buildExcerpt(content: string): string {
 }
 
 /**
- * 首页帖子流：分页查询已发布帖子，附带作者昵称、版块名与图片 Base64 列表（无需登录）。
+ * 首页帖子流：分页查询已发布帖子，附带作者昵称、版块名与图片地址列表（无需登录）。
  */
 async function listFeedHandler(req: Request, res: Response): Promise<void> {
   try {
@@ -287,8 +294,8 @@ async function listFeedHandler(req: Request, res: Response): Promise<void> {
 
     const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
     const imageMap = await buildImageMapForIds(ids);
-    const base64Map = await resolveImageMapToBase64(imageMap);
-    const avatarMap = await batchResolveStoredAvatarsForClient(rows.map((r) => r.avatar));
+    const clientPathMap = await resolveImageMapToClientPaths(imageMap);
+    const avatarMap = await batchResolveStoredImagesToClientPaths(rows.map((r) => r.avatar));
 
     const viewerId = req.userId;
     let likedSet = new Set<number>();
@@ -305,7 +312,7 @@ async function listFeedHandler(req: Request, res: Response): Promise<void> {
       const avatarDisplay = avatarMap.get(avKey) ?? avKey;
       return toFeedItemJson(
         r,
-        base64Map.get(pid) ?? [],
+        clientPathMap.get(pid) ?? [],
         likedSet.has(pid),
         favoritedSet.has(pid),
         avatarDisplay
@@ -361,8 +368,8 @@ async function listMyFavoritePostsHandler(req: Request, res: Response): Promise<
 
     const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
     const imageMap = await buildImageMapForIds(ids);
-    const base64Map = await resolveImageMapToBase64(imageMap);
-    const avatarMap = await batchResolveStoredAvatarsForClient(rows.map((r) => r.avatar));
+    const clientPathMap = await resolveImageMapToClientPaths(imageMap);
+    const avatarMap = await batchResolveStoredImagesToClientPaths(rows.map((r) => r.avatar));
 
     let likedSet = new Set<number>();
     let favoritedSet = new Set<number>();
@@ -378,7 +385,7 @@ async function listMyFavoritePostsHandler(req: Request, res: Response): Promise<
       const avatarDisplay = avatarMap.get(avKey) ?? avKey;
       return toFeedItemJson(
         r,
-        base64Map.get(pid) ?? [],
+        clientPathMap.get(pid) ?? [],
         likedSet.has(pid),
         favoritedSet.has(pid),
         avatarDisplay
@@ -430,8 +437,8 @@ async function listMyPublishedPostsHandler(req: Request, res: Response): Promise
 
     const ids = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id));
     const imageMap = await buildImageMapForIds(ids);
-    const base64Map = await resolveImageMapToBase64(imageMap);
-    const avatarMap = await batchResolveStoredAvatarsForClient(rows.map((r) => r.avatar));
+    const clientPathMap = await resolveImageMapToClientPaths(imageMap);
+    const avatarMap = await batchResolveStoredImagesToClientPaths(rows.map((r) => r.avatar));
 
     let likedSet = new Set<number>();
     let favoritedSet = new Set<number>();
@@ -447,7 +454,7 @@ async function listMyPublishedPostsHandler(req: Request, res: Response): Promise
       const avatarDisplay = avatarMap.get(avKey) ?? avKey;
       return toFeedItemJson(
         r,
-        base64Map.get(pid) ?? [],
+        clientPathMap.get(pid) ?? [],
         likedSet.has(pid),
         favoritedSet.has(pid),
         avatarDisplay

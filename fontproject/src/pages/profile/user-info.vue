@@ -162,7 +162,7 @@ const aiLoading = ref(false);
 const previewVisible = ref(false);
 /** 待写入资料库的头像路径，如 /image/test/xxx.png */
 const pendingAvatarPath = ref("");
-/** 预览图地址：本地上传可用接口返回的 Base64，AI 用完整资源 URL */
+/** 预览图地址：统一使用服务端返回的图片地址（本地 /image 路径或 http/https）。 */
 const previewImageSrc = ref("");
 const saveLoading = ref(false);
 
@@ -261,10 +261,8 @@ const onPickAndUpload = () => {
         }
         const avatarPath = `/image/test/${apiRes.data.fileName}`;
         pendingAvatarPath.value = avatarPath;
-        previewImageSrc.value =
-          apiRes.data.imageBase64 && apiRes.data.imageBase64.length > 0
-            ? apiRes.data.imageBase64
-            : resolveAssetUrl(avatarPath);
+        // 头像预览统一走图片地址，不再依赖 Base64。
+        previewImageSrc.value = resolveAssetUrl(avatarPath);
         previewVisible.value = true;
       } catch {
         uni.showToast({ title: "上传失败", icon: "none" });
@@ -295,9 +293,8 @@ const onAiGenerateConfirm = async () => {
     }
 
     pendingAvatarPath.value = gen.data.avatar;
-    const b64 = gen.data.imageBase64?.trim();
-    previewImageSrc.value =
-      b64 && b64.startsWith("data:") ? b64 : resolveAssetUrl(gen.data.avatar);
+    // AI 头像同样直接使用后端返回地址（本地 /image 或 http/https）。
+    previewImageSrc.value = resolveAssetUrl(gen.data.avatar);
     previewVisible.value = true;
   } catch {
     uni.showToast({ title: "生成失败", icon: "none" });
