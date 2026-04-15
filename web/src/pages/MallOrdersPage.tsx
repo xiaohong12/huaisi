@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react'
 import type { AdminOrderListItem, AdminOrderProductSnapshot, AdminOrderWorkflowStatus } from '@/api/adminOrders'
 import {
@@ -71,12 +72,22 @@ function OrderStatusBadge({ status }: { status: OrderItem['status'] }) {
  * 订单中心：遵循 web-table-standard 规范的表格页面，展示后台订单列表。
  */
 export function MallOrdersPage() {
-  const [page, setPage] = useState(1)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [page, setPage] = useState(() => {
+    const raw = Number(searchParams.get('page') || '1')
+    return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 1
+  })
   const [pageSize] = useState(10)
-  const [keywordInput, setKeywordInput] = useState('')
-  const [appliedKeyword, setAppliedKeyword] = useState('')
-  const [statusFilterInput, setStatusFilterInput] = useState<OrderStatusFilterValue>('')
-  const [appliedStatus, setAppliedStatus] = useState<OrderStatusFilterValue>('')
+  const [keywordInput, setKeywordInput] = useState(() => searchParams.get('keyword')?.trim() || '')
+  const [appliedKeyword, setAppliedKeyword] = useState(() => searchParams.get('keyword')?.trim() || '')
+  const [statusFilterInput, setStatusFilterInput] = useState<OrderStatusFilterValue>(() => {
+    const raw = searchParams.get('status') || ''
+    return ORDER_STATUS_FILTER_OPTIONS.some((o) => o.value === raw) ? (raw as OrderStatusFilterValue) : ''
+  })
+  const [appliedStatus, setAppliedStatus] = useState<OrderStatusFilterValue>(() => {
+    const raw = searchParams.get('status') || ''
+    return ORDER_STATUS_FILTER_OPTIONS.some((o) => o.value === raw) ? (raw as OrderStatusFilterValue) : ''
+  })
   const [list, setList] = useState<OrderItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -123,13 +134,49 @@ export function MallOrdersPage() {
     void load()
   }, [load])
 
+  /**
+   * 同步 URL 查询参数到页面状态，支持从工作台携带订单号跳转后自动搜索。
+   */
+  useEffect(() => {
+    const nextKeyword = searchParams.get('keyword')?.trim() || ''
+    const nextStatusRaw = searchParams.get('status') || ''
+    const nextStatus = ORDER_STATUS_FILTER_OPTIONS.some((o) => o.value === nextStatusRaw)
+      ? (nextStatusRaw as OrderStatusFilterValue)
+      : ''
+    const nextPageRaw = Number(searchParams.get('page') || '1')
+    const nextPage = Number.isFinite(nextPageRaw) && nextPageRaw > 0 ? Math.floor(nextPageRaw) : 1
+
+    setKeywordInput(nextKeyword)
+    setAppliedKeyword(nextKeyword)
+    setStatusFilterInput(nextStatus)
+    setAppliedStatus(nextStatus)
+    setPage(nextPage)
+  }, [searchParams])
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  /**
+   * 将当前筛选条件写入 URL，便于分享链接和跨页面跳转后恢复筛选状态。
+   */
+  const syncSearchParams = useCallback(
+    (next: { keyword: string; status: OrderStatusFilterValue; page: number }) => {
+      const sp = new URLSearchParams()
+      if (next.keyword.trim()) sp.set('keyword', next.keyword.trim())
+      if (next.status) sp.set('status', next.status)
+      if (next.page > 1) sp.set('page', String(next.page))
+      setSearchParams(sp, { replace: true })
+    },
+    [setSearchParams]
+  )
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setAppliedKeyword(keywordInput.trim())
-    setAppliedStatus(statusFilterInput)
+    const nextKeyword = keywordInput.trim()
+    const nextStatus = statusFilterInput
+    setAppliedKeyword(nextKeyword)
+    setAppliedStatus(nextStatus)
     setPage(1)
+    syncSearchParams({ keyword: nextKeyword, status: nextStatus, page: 1 })
   }
 
   /**
@@ -273,6 +320,7 @@ export function MallOrdersPage() {
                 setStatusFilterInput('')
                 setAppliedStatus('')
                 setPage(1)
+                syncSearchParams({ keyword: '', status: '', page: 1 })
               }}
             >
               重置
@@ -384,7 +432,17 @@ export function MallOrdersPage() {
                 size="icon"
                 className="size-8 rounded-md"
                 disabled={loading || page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() =>
+                  setPage((p) => {
+                    const nextPage = Math.max(1, p - 1)
+                    syncSearchParams({
+                      keyword: appliedKeyword,
+                      status: appliedStatus,
+                      page: nextPage,
+                    })
+                    return nextPage
+                  })
+                }
               >
                 <ChevronLeft className="size-4" />
               </Button>
@@ -397,7 +455,17 @@ export function MallOrdersPage() {
                 size="icon"
                 className="size-8 rounded-md"
                 disabled={loading || page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() =>
+                  setPage((p) => {
+                    const nextPage = p + 1
+                    syncSearchParams({
+                      keyword: appliedKeyword,
+                      status: appliedStatus,
+                      page: nextPage,
+                    })
+                    return nextPage
+                  })
+                }
               >
                 <ChevronRight className="size-4" />
               </Button>

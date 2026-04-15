@@ -11,6 +11,7 @@ import adminUsersRouter from './adminUsers';
 import adminOrdersRouter from './adminOrders';
 import adminPostsRouter from './adminPosts';
 import adminProductsRouter from './adminProducts';
+import adminWorkbenchRouter from './adminWorkbench';
 
 const router = Router();
 
@@ -44,5 +45,9 @@ router.use('/admin/posts', adminPostsRouter);
  * 管理后台业务：商品中心列表与新增（均需 admin token）。
  */
 router.use('/admin/products', adminProductsRouter);
+/**
+ * 管理后台业务：工作台今日指标与趋势（均需 admin token）。
+ */
+router.use('/admin/workbench', adminWorkbenchRouter);
 
 export default router;

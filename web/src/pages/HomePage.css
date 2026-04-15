@@ -7,46 +7,178 @@
   box-sizing: border-box;
 }
 
-.admin-home__title {
-  font-size: 2rem;
-  font-weight: 400;
-  line-height: 1.3;
-  color: var(--color-text);
-  margin: 0 0 var(--space-2);
-}
-
-.admin-home__subtitle {
-  margin: 0 0 var(--space-5);
-  font-size: 16px;
-  line-height: 1.45;
-  color: var(--color-text-muted);
-}
-
-.admin-home__cards {
+.admin-home__metric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.admin-home__metric-card {
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  padding: 16px;
+  min-height: 126px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 0.24s ease,
+    background 0.24s ease,
+    box-shadow 0.24s ease,
+    transform 0.24s ease;
+}
+
+.admin-home__metric-card:hover {
+  border-color: #93c5fd;
+  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+  box-shadow: 0 14px 30px rgba(59, 130, 246, 0.14);
+  transform: translateY(-2px);
+}
+
+.admin-home__metric-label {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.admin-home__metric-value {
+  margin: 0;
+  color: #0f172a;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.admin-home__metric-hint {
+  margin: auto 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.admin-home__content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
   gap: var(--space-4);
 }
 
-.admin-home__card {
-  padding: var(--space-4);
-  border: 1px solid var(--color-border-subtle);
-  background: #ffffff;
+.admin-home__panel {
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  padding: 16px;
 }
 
-.admin-home__card h3 {
-  margin: 0 0 var(--space-2);
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--color-text);
-  line-height: 1.3;
+.admin-home__panel-head {
+  margin-bottom: 12px;
 }
 
-.admin-home__card p {
+.admin-home__panel-head h3 {
   margin: 0;
+  font-size: 18px;
+  line-height: 1.35;
+  color: #0f172a;
+}
+
+.admin-home__panel-head p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.admin-home__trend-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-home__chart-wrap {
+  width: 100%;
+  height: 320px;
+}
+
+.admin-home__trade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-home__trade-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.admin-home__trade-item:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  transform: translateY(-1px);
+}
+
+.admin-home__trade-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.admin-home__trade-order {
   font-size: 14px;
-  line-height: 1.45;
-  color: var(--color-text-muted);
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.admin-home__trade-amount {
+  font-size: 15px;
+  color: #ea580c;
+  font-weight: 700;
+}
+
+.admin-home__trade-bottom {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.admin-home__trade-empty {
+  margin: 0;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+@media (max-width: 1280px) {
+  .admin-home__content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-home__chart-wrap {
+    height: 280px;
+  }
+
+  .admin-home__trade-bottom {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }
 
 /* 各业务子路由占位页共用 */
