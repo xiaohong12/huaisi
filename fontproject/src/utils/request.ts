@@ -14,7 +14,51 @@ const shouldClearSessionOn401 = (relativeUrl: string): boolean => {
 /**
  * 后端服务基础地址，所有请求均基于该地址拼接。
  */
-export const BASE_URL = "http://192.168.31.57:7001";
+export const BASE_URL = ((import.meta as { env?: Record<string, string | undefined> }).env?.VITE_BASE_URL
+  || "http://192.168.31.57:7001").trim();
+
+/**
+ * 图片资源对外访问地址（内网穿透/公网域名）：
+ * - 帖子图片等静态资源优先走 HTTPS 穿透地址，避免真机拦截内网 http 图片。
+ * - 未配置时回退为 BASE_URL。
+ */
+export const ASSET_BASE_URL = ((import.meta as { env?: Record<string, string | undefined> }).env
+  ?.VITE_ASSET_BASE_URL || "").trim();
+
+/**
+ * 获取最终生效的图片资源基础地址，去掉末尾斜杠避免拼接双斜杠。
+ */
+const getAssetBaseUrl = (): string => {
+  const base = (ASSET_BASE_URL || BASE_URL).trim();
+  return base.replace(/\/+$/, "");
+};
+
+/**
+ * 判断是否为局域网/本机地址（用于识别需要走内网穿透改写的图片 URL）。
+ */
+const isPrivateHost = (hostname: string): boolean => {
+  if (!hostname) return false;
+  if (hostname === "localhost" || hostname === "127.0.0.1") return true;
+  if (/^192\.168\./.test(hostname)) return true;
+  if (/^10\./.test(hostname)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)) return true;
+  return false;
+};
+
+/**
+ * 将局域网图片绝对地址改写为穿透域名地址，仅处理 /image/... 路径，避免误改业务接口 URL。
+ */
+const rewritePrivateImageUrl = (raw: string): string => {
+  try {
+    const parsed = new URL(raw);
+    if (!isPrivateHost(parsed.hostname) || !parsed.pathname.startsWith("/image/")) {
+      return raw;
+    }
+    return `${getAssetBaseUrl()}${parsed.pathname}${parsed.search || ""}`;
+  } catch {
+    return raw;
+  }
+};
 
 /**
  * 将相对资源路径（如 /image/xxx）转为可访问的完整地址。
@@ -22,11 +66,13 @@ export const BASE_URL = "http://192.168.31.57:7001";
  */
 export const resolveAssetUrl = (pathOrUrl: string): string => {
   if (!pathOrUrl) return "";
-  if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) return pathOrUrl;
+  if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
+    return rewritePrivateImageUrl(pathOrUrl);
+  }
   if (/^data:image\//i.test(pathOrUrl)) return pathOrUrl;
   if (pathOrUrl.startsWith("blob:") || pathOrUrl.startsWith("wxfile://")) return pathOrUrl;
   const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
-  return `${BASE_URL}${p}`;
+  return `${getAssetBaseUrl()}${p}`;
 };
 
 /**
@@ -38,12 +84,12 @@ export const resolveAssetUrl = (pathOrUrl: string): string => {
 const normalizeImageAssetString = (raw: string): string => {
   if (!raw) return raw;
   const isImageFileRef = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(raw);
-  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return rewritePrivateImageUrl(raw);
   if (/^data:image\//i.test(raw)) return raw;
   if (raw.startsWith("blob:") || raw.startsWith("wxfile://")) return raw;
-  if (raw.startsWith("/image/")) return `${BASE_URL}${raw}`;
-  if (raw.startsWith("image/")) return `${BASE_URL}/${raw}`;
-  if (raw.startsWith("test/") && isImageFileRef) return `${BASE_URL}/image/${raw}`;
+  if (raw.startsWith("/image/")) return `${getAssetBaseUrl()}${raw}`;
+  if (raw.startsWith("image/")) return `${getAssetBaseUrl()}/${raw}`;
+  if (raw.startsWith("test/") && isImageFileRef) return `${getAssetBaseUrl()}/image/${raw}`;
   return raw;
 };
 
