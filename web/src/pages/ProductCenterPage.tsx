@@ -367,9 +367,6 @@ export function ProductCenterPage() {
       <Card className="bg-white rounded-[30px] border-none shadow-sm">
         <CardHeader className="px-8 pt-8 pb-4">
           <CardTitle className="text-2xl font-normal">商品中心</CardTitle>
-          <CardDescription className="text-base">
-            基于 mall_products 表结构展示商品基础信息，支持在后台快速新增商品。
-          </CardDescription>
         </CardHeader>
         <CardContent className="px-8 pb-8">
           <form

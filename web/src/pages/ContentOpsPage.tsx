@@ -198,9 +198,6 @@ export function ContentOpsPage() {
       <Card className="bg-white rounded-[30px] border-none shadow-sm">
         <CardHeader className="px-8 pt-8 pb-4">
           <CardTitle className="text-2xl font-normal">帖子中心</CardTitle>
-          <CardDescription className="text-base">
-            轮播、版块、帖子、评论与点赞收藏等管理。列表数据来自后台帖子表，支持关键词检索。
-          </CardDescription>
         </CardHeader>
         <CardContent className="px-8 pb-8">
           <form

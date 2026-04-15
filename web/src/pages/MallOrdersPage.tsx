@@ -267,9 +267,6 @@ export function MallOrdersPage() {
       <Card className="bg-white rounded-[30px] border-none shadow-sm">
         <CardHeader className="px-8 pt-8 pb-4">
           <CardTitle className="text-2xl font-normal">订单中心</CardTitle>
-          <CardDescription className="text-base">
-            商城订单查询、发货与售后处理，列表已支持展示订单首件商品主图和商品名称。
-          </CardDescription>
         </CardHeader>
         <CardContent className="px-8 pb-8">
           <form
