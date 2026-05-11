@@ -42,8 +42,13 @@ const app: Application = express();
 app.use(helmet());
 app.use(cors(config.cors));
 app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+/**
+ * 请求体大小上限：管理端商品等接口会在 JSON 中携带 Base64 图片，体积远超 Express 默认约 100kb，
+ * 过小会导致「request entity too large」并在全局错误处理中表现为 500。
+ */
+const jsonBodyLimit = process.env.JSON_BODY_LIMIT ?? '20mb';
+app.use(express.json({ limit: jsonBodyLimit }));
+app.use(express.urlencoded({ extended: true, limit: jsonBodyLimit }));
 /**
  * 图片静态目录跨域配置，确保前端可直接访问上传后的图片地址。
  */
