@@ -1,12 +1,14 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import bcrypt from 'bcryptjs';
 import type { RowDataPacket } from 'mysql2/promise';
 import { execute, queryOne } from '../db';
 import { requireAuth } from '../middleware/authMiddleware';
 import { successResponse } from '../utils/response';
 import config from '../config';
-import { resolveStoredAvatarForClient } from '../utils/imageMedia';
+import { resolveStoredAvatarForClient, TEST_IMAGE_DIR } from '../utils/imageMedia';
 
 const router = Router();
 const TOKEN_EXPIRE_DAYS = 7;
@@ -15,6 +17,38 @@ interface LoginBody {
   /** 11 位手机号，与 users.phone 匹配 */
   phone?: string;
   password?: string;
+}
+
+/** 手机号注册请求体：手机号、密码及资料（头像、昵称、性别） */
+interface RegisterBody {
+  phone?: string;
+  password?: string;
+  /** 展示姓名，写入 users.nickname */
+  nickname?: string;
+  /** male / female / unknown */
+  gender?: string;
+  /** 已上传的头像访问路径，如 /image/test/xxx.png */
+  avatar?: string;
+}
+
+/**
+ * 校验注册时头像路径：必须为 /image/test/ 下已存在的文件，防止任意路径写入。
+ */
+function sanitizeRegisterAvatar(avatarRaw: unknown): string | null {
+  if (typeof avatarRaw !== 'string') {
+    return null;
+  }
+  const s = avatarRaw.trim();
+  const m = /^\/image\/test\/([a-zA-Z0-9._-]+)$/.exec(s);
+  if (!m) {
+    return null;
+  }
+  const fname = m[1];
+  const fullPath = path.join(TEST_IMAGE_DIR, fname);
+  if (!fs.existsSync(fullPath)) {
+    return null;
+  }
+  return `/image/test/${fname}`;
 }
 
 interface UserLoginRow extends RowDataPacket {
@@ -168,6 +202,86 @@ router.post('/login', async (req: Request<unknown, unknown, LoginBody>, res: Res
   } catch (error) {
     const err = error as Error;
     successResponse(res, null, `登录失败: ${err.message}`, 500, 500);
+  }
+});
+
+/**
+ * 手机号注册接口：校验手机号与密码规则，若手机号未被占用则创建用户并签发 token（返回结构与登录一致）。
+ */
+router.post('/register', async (req: Request<unknown, unknown, RegisterBody>, res: Response) => {
+  try {
+    const phone = typeof req.body.phone === 'string' ? req.body.phone.trim() : '';
+    const password = req.body.password;
+    const nicknameRaw = typeof req.body.nickname === 'string' ? req.body.nickname.trim() : '';
+    const genderRaw = typeof req.body.gender === 'string' ? req.body.gender.trim() : '';
+    if (!phone || !password) {
+      successResponse(res, null, '手机号和密码不能为空', 400, 400);
+      return;
+    }
+    if (!/^1\d{10}$/.test(phone)) {
+      successResponse(res, null, '请输入有效的 11 位手机号', 400, 400);
+      return;
+    }
+    if (typeof password !== 'string' || password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password)) {
+      successResponse(res, null, '密码至少 8 位且需同时包含大写与小写字母', 400, 400);
+      return;
+    }
+    if (!nicknameRaw || nicknameRaw.length > 32) {
+      successResponse(res, null, '姓名不能为空且不超过 32 个字', 400, 400);
+      return;
+    }
+    let gender: 'male' | 'female' | 'unknown';
+    if (genderRaw === 'male' || genderRaw === 'female' || genderRaw === 'unknown') {
+      gender = genderRaw;
+    } else {
+      successResponse(res, null, '请选择有效性别', 400, 400);
+      return;
+    }
+    const avatarStored = sanitizeRegisterAvatar(req.body.avatar);
+    if (!avatarStored) {
+      successResponse(res, null, '请先上传头像（相册或拍照）', 400, 400);
+      return;
+    }
+
+    const existed = await queryOne<RowDataPacket>('SELECT id FROM users WHERE phone = ? LIMIT 1', [phone]);
+    if (existed) {
+      successResponse(res, null, '该手机号已注册，请直接登录', 400, 400);
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const nickname = nicknameRaw;
+    let username = `u_${phone}`;
+    const usernameTaken = await queryOne<RowDataPacket>('SELECT id FROM users WHERE username = ? LIMIT 1', [
+      username
+    ]);
+    if (usernameTaken) {
+      username = `u_${phone}_${crypto.randomBytes(3).toString('hex')}`;
+    }
+
+    await execute(
+      'INSERT INTO users (username, phone, nickname, avatar, gender, password) VALUES (?, ?, ?, ?, ?, ?)',
+      [username, phone, nickname, avatarStored, gender, passwordHash]
+    );
+
+    const user = await queryOne<UserLoginRow>(
+      'SELECT id, username, openid, nickname, avatar, gender, password, status FROM users WHERE phone = ? LIMIT 1',
+      [phone]
+    );
+    if (!user) {
+      successResponse(res, null, '注册失败：未找到新建用户', 500, 500);
+      return;
+    }
+    if (Number(user.status) !== 1) {
+      successResponse(res, null, '账号状态异常，请联系管理员', 403, 403);
+      return;
+    }
+
+    const loginData = await issueLoginToken(user);
+    successResponse(res, loginData, '注册成功');
+  } catch (error) {
+    const err = error as Error;
+    successResponse(res, null, `注册失败: ${err.message}`, 500, 500);
   }
 });
 

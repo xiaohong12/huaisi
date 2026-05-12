@@ -1,6 +1,6 @@
 import { BASE_URL, request } from "@/utils/request";
 import { clearLocalLoginState } from "@/utils/clearAuthStorage";
-import type { ApiError, ApiResponse } from "@/types/api";
+import type { ApiResponse } from "@/types/api";
 
 /**
  * 通用测试接口数据结构。
@@ -58,6 +58,19 @@ export interface UserItem {
 export interface LoginPayload {
   phone: string;
   password: string;
+}
+
+/**
+ * 手机号注册接口请求参数：手机号、密码及头像、姓名、性别。
+ */
+export interface RegisterPayload {
+  phone: string;
+  password: string;
+  /** 展示姓名，对应服务端 users.nickname */
+  nickname: string;
+  gender: "male" | "female" | "unknown";
+  /** 上传接口返回的路径，如 /image/test/xxx.png */
+  avatar: string;
 }
 
 /**
@@ -142,12 +155,46 @@ export const getRemoteImageUrlApi = (): Promise<ApiResponse<RemoteImageUrlData>>
 };
 
 /**
+ * 上传图片可选配置：注册等未登录场景不传 token，避免无效 Authorization 经网关/后续鉴权扩展时干扰上传。
+ */
+export interface UploadImageOptions {
+  omitAuth?: boolean;
+}
+
+/**
+ * 解析 uni.uploadFile 返回的 data：各端可能是 string 或已解析的 object，非法 JSON 时抛出明确错误。
+ */
+const parseUploadFileResponse = (raw: unknown): ApiResponse<UploadImageData> => {
+  if (raw && typeof raw === "object" && "code" in (raw as object)) {
+    return raw as ApiResponse<UploadImageData>;
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      throw new Error("上传接口返回空响应，请检查服务地址与网络");
+    }
+    try {
+      return JSON.parse(trimmed) as ApiResponse<UploadImageData>;
+    } catch {
+      const hint = trimmed.startsWith("<") ? "服务端返回了非 JSON（常为网关/代理错误页）" : "上传接口响应不是合法 JSON";
+      throw new Error(`${hint}，HTTP 或代理状态请查看开发者工具 Network`);
+    }
+  }
+  throw new Error("上传接口响应格式异常");
+};
+
+/**
  * 上传图片到后端 image/test 目录，返回文件名；前端按约定拼接 `/image/test/<fileName>` 使用。
  * @param filePath 小程序临时文件路径
+ * @param options 可选；注册页等未登录上传建议传 { omitAuth: true }
  */
-export const uploadImageApi = (filePath: string): Promise<ApiResponse<UploadImageData>> => {
+export const uploadImageApi = (
+  filePath: string,
+  options?: UploadImageOptions
+): Promise<ApiResponse<UploadImageData>> => {
   return new Promise((resolve, reject) => {
-    const token = uni.getStorageSync("token") as string | undefined;
+    const omitAuth = Boolean(options?.omitAuth);
+    const token = omitAuth ? "" : ((uni.getStorageSync("token") as string | undefined) || "");
     const header: Record<string, string> = {};
     if (token) {
       header.Authorization = `Bearer ${token}`;
@@ -158,15 +205,40 @@ export const uploadImageApi = (filePath: string): Promise<ApiResponse<UploadImag
       name: "file",
       header,
       success: (res) => {
-        const data = JSON.parse(res.data) as ApiResponse<UploadImageData>;
         const status = res.statusCode ?? 200;
-        if (status === 401 || data.code === 401) {
+        let data: ApiResponse<UploadImageData>;
+        try {
+          data = parseUploadFileResponse(res.data);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "解析上传响应失败";
+          resolve({
+            code: status >= 400 ? status : 500,
+            message: msg,
+            data: null,
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+        if (token && (status === 401 || data.code === 401)) {
           clearLocalLoginState();
+        }
+        if (status >= 400 && (data.code === 0 || data.code === 200)) {
+          resolve({
+            code: status,
+            message: data.message || `HTTP ${status}`,
+            data: null,
+            timestamp: new Date().toISOString(),
+          });
+          return;
         }
         resolve(data);
       },
       fail: (err) => {
-        reject(err as ApiError);
+        const msg =
+          typeof err?.errMsg === "string"
+            ? err.errMsg
+            : "上传请求失败（请检查 BASE_URL、本机与手机是否同网段、小程序合法域名）";
+        reject(new Error(msg));
       },
     });
   });
@@ -189,6 +261,18 @@ export const getUsersApi = (): Promise<ApiResponse<UserItem[]>> => {
 export const loginApi = (payload: LoginPayload): Promise<ApiResponse<LoginData>> => {
   return request<LoginData>({
     url: "/api/auth/login",
+    method: "POST",
+    data: payload as unknown as Record<string, unknown>,
+  });
+};
+
+/**
+ * 手机号注册：后端校验资料完整后创建用户并签发 token（与登录成功返回结构一致）。
+ * @param payload 注册参数（手机号、密码、昵称、性别、头像路径）
+ */
+export const registerApi = (payload: RegisterPayload): Promise<ApiResponse<LoginData>> => {
+  return request<LoginData>({
+    url: "/api/auth/register",
     method: "POST",
     data: payload as unknown as Record<string, unknown>,
   });

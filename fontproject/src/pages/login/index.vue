@@ -21,6 +21,9 @@
       <view class="action-wrap">
         <button class="btn btn-phone" @click="goPhoneLogin">手机号码登录</button>
         <button class="btn btn-quick" @click="handleQuickLogin">一键登录</button>
+        <view class="register-row">
+          <text class="register-link" @click="goRegister">去注册</text>
+        </view>
       </view>
     </view>
 
@@ -50,6 +53,15 @@ const agreed = ref(false);
 const goPhoneLogin = () => {
   uni.navigateTo({
     url: "/pages/login/phone-password",
+  });
+};
+
+/**
+ * 跳转到手机号注册页面。
+ */
+const goRegister = () => {
+  uni.navigateTo({
+    url: "/pages/login/register",
   });
 };
 
@@ -383,6 +395,18 @@ const toggleAgreement = () => {
   background: linear-gradient(90deg, #22aa66 0%, #46c978 100%);
   color: #ffffff;
   box-shadow: 0 12rpx 24rpx rgba(39, 176, 110, 0.3);
+}
+
+.register-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 28rpx;
+}
+
+.register-link {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #3158ff;
 }
 
 .guest-text {

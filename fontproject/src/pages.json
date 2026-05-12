@@ -33,6 +33,14 @@
 			}
 		},
 		{
+			"path": "pages/login/register",
+			"style": {
+				"navigationBarTitleText": "注册",
+				"navigationBarBackgroundColor": "#ffffff",
+				"backgroundColor": "#ffffff"
+			}
+		},
+		{
 			"path": "pages/discover/index",
 			"style": {
 				"navigationBarTitleText": "商城",
