@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :style="keyboardCssVars">
     <!-- 聊天内容区域 -->
     <scroll-view 
       class="chat-container" 
@@ -52,7 +52,7 @@
       </view>
     </view>
 
-    <!-- 底部输入区域 -->
+    <!-- 底部输入区域：键盘弹起时仅抬高本区域，不顶起整页（依赖 adjust-position=false + 键盘高度变量） -->
     <view class="input-section-wrapper">
       <view class="input-section">
         <view class="input-icon">
@@ -66,6 +66,8 @@
           confirm-type="send"
           @confirm="sendMessage"
           :disabled="isGenerating"
+          :adjust-position="false"
+          :cursor-spacing="16"
         />
         <view 
           class="send-btn" 
@@ -76,15 +78,33 @@
         </view>
       </view>
     </view>
-
-    <CustomTabBar />
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
-import CustomTabBar from "@/components/CustomTabBar.vue";
+import { ref, nextTick, computed, onMounted, onBeforeUnmount } from 'vue';
 import { streamAiChat, type ChatMessage } from '@/api/ai';
+
+/** 键盘高度（px），用于只抬高输入条与滚动留白，避免系统默认把整个页面上推 */
+const keyboardHeightPx = ref(0);
+
+/** 写入根节点 CSS 变量，供 bottom / padding-bottom 与键盘联动 */
+const keyboardCssVars = computed(() => ({
+  '--keyboard-height': `${keyboardHeightPx.value}px`,
+}));
+
+/** 监听键盘高度变化（微信小程序等端支持） */
+const onKeyboardHeightChange = (res: { height?: number }) => {
+  keyboardHeightPx.value = typeof res?.height === 'number' ? res.height : 0;
+};
+
+onMounted(() => {
+  uni.onKeyboardHeightChange(onKeyboardHeightChange);
+});
+
+onBeforeUnmount(() => {
+  uni.offKeyboardHeightChange(onKeyboardHeightChange);
+});
 
 /**
  * 预设问题列表
@@ -214,6 +234,9 @@ const sendMessage = () => {
   height: 100vh;
   background: #f5f7fb;
   box-sizing: border-box;
+  --keyboard-height: 0px;
+  /* 二级聊天页无 Tab，输入条高度：上下 padding 20*2 + 输入框 80 */
+  --order-input-strip-height: 120rpx;
 }
 
 /* 聊天内容区域，占据剩余空间 */
@@ -221,6 +244,10 @@ const sendMessage = () => {
   flex: 1;
   height: 0; /* 配合 flex: 1 限制高度，使 scroll-view 生效 */
   padding: 0 16rpx;
+  /* 为固定输入条、安全区与键盘抬起预留底部滚动空间 */
+  padding-bottom: calc(
+    var(--order-input-strip-height) + env(safe-area-inset-bottom) + var(--keyboard-height)
+  );
   box-sizing: border-box;
 }
 
@@ -235,7 +262,9 @@ const sendMessage = () => {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(260rpx + env(safe-area-inset-bottom));
+  bottom: calc(
+    var(--order-input-strip-height) + env(safe-area-inset-bottom) + var(--keyboard-height)
+  );
   padding: 0 16rpx;
   box-sizing: border-box;
 }
@@ -365,11 +394,16 @@ const sendMessage = () => {
   height: 40rpx;
 }
 
-/* 底部输入区域 */
+/* 底部输入区域：固定在视口底部，随键盘变量上移 */
 .input-section-wrapper {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 100;
   background-color: #ffffff;
-  /* 增加底部安全距离，确保不被 CustomTabBar 遮挡，假设 tabBar 高度约为 100rpx-120rpx */
-  padding-bottom: calc(95rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -4rpx 24rpx rgba(28, 34, 46, 0.06);
+  padding-bottom: 20rpx;
+  bottom: calc(var(--keyboard-height));
 }
 
 .input-section {

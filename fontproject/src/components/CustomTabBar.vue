@@ -77,16 +77,23 @@ const currentPath = computed(() => {
   return current ? `/${current.route}` : "";
 });
 
+/** 聊天页路径：作为二级页 navigateTo 打开，不在各 Tab 根页内嵌显示 */
+const CHAT_PAGE_PATH = "/pages/order/index";
+
 /**
  * 判断指定路径是否为当前激活页。
  */
 const isActive = (path: string) => currentPath.value === path;
 
 /**
- * 底部导航跳转方法，若目标页已激活则不重复跳转。
+ * 底部导航跳转：首页/商城/我的用 redirectTo 切换根页；聊天用 navigateTo 进入二级页（带返回）。
  */
 const go = (path: string) => {
   if (path === currentPath.value) return;
+  if (path === CHAT_PAGE_PATH) {
+    uni.navigateTo({ url: path });
+    return;
+  }
   uni.redirectTo({ url: path });
 };
 
@@ -116,8 +123,8 @@ const onPublishActionSelect = (item: { name?: string; sectionKey?: string }) => 
   position: fixed;
   width: 100%;
   z-index: 999;
-  bottom:0rpx;
-  
+  bottom: 0rpx;
+ 
 }
 
 .tabbar {
