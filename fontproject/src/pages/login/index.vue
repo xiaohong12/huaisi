@@ -2,7 +2,7 @@
   <view class="page">
     <view class="login-card">
       <view class="hero-wrap">
-        <image class="hero-image" src="/static/image/wecolme.jpg" mode="aspectFill" />
+        <image class="hero-image" src="/static/image/wecolme.png" mode="aspectFill" />
         <view class="hero-mask" />
         <view class="spark spark-1" />
         <view class="spark spark-2" />
