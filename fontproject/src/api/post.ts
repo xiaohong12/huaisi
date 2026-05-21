@@ -127,6 +127,16 @@ export const getMyPublishedPostsApi = (
 };
 
 /**
+ * 删除当前用户自己发布的帖子（软删除）；需登录且仅能删除本人帖子。
+ */
+export const deleteMyPostApi = (postId: number): Promise<ApiResponse<{ id: number }>> => {
+  return request<{ id: number }>({
+    url: `/api/posts/${postId}`,
+    method: "DELETE",
+  });
+};
+
+/**
  * 切换点赞：已赞则取消。需登录；成功时 data 为与列表项一致的完整帖子对象，便于单条刷新。
  */
 export const togglePostLikeApi = (postId: number): Promise<ApiResponse<PostFeedItemDTO>> => {

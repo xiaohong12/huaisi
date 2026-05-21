@@ -46,13 +46,16 @@
 import { ref } from "vue";
 import { onPullDownRefresh, onShow } from "@dcloudio/uni-app";
 import PostCard from "@/components/PostCard.vue";
-import { getMyPublishedPostsApi, type PostFeedItemDTO } from "@/api/post";
+import { deleteMyPostApi, getMyPublishedPostsApi, type PostFeedItemDTO } from "@/api/post";
+import { useProfileQuickStatsStore } from "@/stores/profileQuickStats";
 import { MY_PUBLISHED_REFRESH_FLAG } from "@/constants/storageKeys";
 import { mapPostFeedItemToCard, type HomePostCard } from "@/utils/postFeedMap";
 
 const postList = ref<HomePostCard[]>([]);
 const loading = ref(true);
 const needLogin = ref(false);
+const deletingId = ref<number | null>(null);
+const quickStats = useProfileQuickStatsStore();
 
 /**
  * 拉取当前用户已发布帖子；未登录时不请求。
@@ -87,10 +90,40 @@ const loadMyPosts = async () => {
 };
 
 /**
- * 帖子右上角更多（与首页一致，占位）。
+ * 帖子右上角更多：确认后删除该帖（软删除，从列表移除）。
  */
-const onMore = (_id: number) => {
-  uni.showToast({ title: "更多操作待接入", icon: "none" });
+const onMore = (id: number) => {
+  if (deletingId.value != null) return;
+  uni.showModal({
+    title: "删除帖子",
+    content: "确定删除该帖子吗？删除后无法恢复。",
+    confirmText: "删除",
+    confirmColor: "#ef4444",
+    success: async (res) => {
+      if (!res.confirm) return;
+      deletingId.value = id;
+      try {
+        const del = await deleteMyPostApi(id);
+        const ok = del.code === 0 || del.code === 200;
+        if (!ok) {
+          uni.showToast({ title: del.message || "删除失败", icon: "none" });
+          return;
+        }
+        postList.value = postList.value.filter((p) => p.id !== id);
+        const uid = (uni.getStorageSync("loginUser") as { id?: number } | undefined)?.id;
+        if (quickStats.publishTotal != null && quickStats.publishTotal > 0) {
+          const next = quickStats.publishTotal - 1;
+          quickStats.setPublishTotal(next);
+          if (uid != null) quickStats.persistField(uid, "publish", next);
+        }
+        uni.showToast({ title: "已删除", icon: "success" });
+      } catch {
+        uni.showToast({ title: "网络异常", icon: "none" });
+      } finally {
+        deletingId.value = null;
+      }
+    },
+  });
 };
 
 /**

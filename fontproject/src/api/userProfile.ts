@@ -7,9 +7,17 @@ export interface ProfileUserDto {
   id: number;
   username: string;
   nickname: string;
+  phone: string;
   avatar: string;
   gender: "male" | "female" | "unknown";
 }
+
+/** 更新资料时可传的字段，至少包含一项 */
+export type UpdateUserProfilePayload = {
+  avatar?: string;
+  nickname?: string;
+  phone?: string;
+};
 
 /**
  * GET /api/user/profile
@@ -24,9 +32,9 @@ export const getUserProfileApi = () => {
 
 /**
  * PUT /api/user/profile
- * 更新当前用户资料（头像 avatar 为相对路径如 /image/test/xxx.png 或完整 http(s) 外链）。
+ * 更新当前用户资料（avatar / nickname / phone 至少传一项；头像为相对路径或 http(s) 外链）。
  */
-export const updateUserProfileApi = (data: { avatar: string }) => {
+export const updateUserProfileApi = (data: UpdateUserProfilePayload) => {
   return request<{ user: ProfileUserDto }>({
     url: "/api/user/profile",
     method: "PUT",

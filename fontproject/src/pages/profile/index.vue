@@ -80,6 +80,7 @@ interface LoginUser {
   id: number;
   username: string;
   nickname?: string;
+  phone?: string;
   avatar?: string;
 }
 
@@ -128,6 +129,7 @@ const refreshUserProfileFromServer = async () => {
       id: u.id,
       username: u.username,
       nickname: u.nickname,
+      phone: u.phone,
       avatar: u.avatar,
     };
     uni.setStorageSync("loginUser", next);

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Request, RequestHandler, Response } from "express";
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
-import { query, queryOne, transaction } from "../db";
+import { execute, query, queryOne, transaction } from "../db";
 import { successResponse } from "../utils/response";
 import { optionalAuth, requireAuth } from "../middleware/authMiddleware";
 import { isPublishSectionKey, SECTION_NAME_BY_KEY, type PublishSectionKey } from "../constants/publishSection";
@@ -831,11 +831,53 @@ const createPostCommentHandler: RequestHandler<{ postId: string }, unknown, Crea
   }
 };
 
+/**
+ * DELETE /api/posts/:postId
+ * 当前登录用户删除自己发布的帖子（软删除 status=3）；非本人或帖子不存在时返回错误。
+ */
+async function deleteMyPostHandler(req: Request, res: Response): Promise<void> {
+  const userId = req.userId;
+  if (userId == null) {
+    successResponse(res, null, "请先登录", 401, 401);
+    return;
+  }
+  const postId = parseInt(String(req.params.postId), 10);
+  if (!Number.isFinite(postId) || postId <= 0) {
+    successResponse(res, null, "无效的帖子 ID", 400, 400);
+    return;
+  }
+  try {
+    const row = await queryOne<RowDataPacket & { user_id: number; status: number }>(
+      "SELECT user_id, status FROM posts WHERE id = ? LIMIT 1",
+      [postId]
+    );
+    if (!row) {
+      successResponse(res, null, "帖子不存在", 404, 404);
+      return;
+    }
+    if (Number(row.user_id) !== Number(userId)) {
+      successResponse(res, null, "无权删除该帖子", 403, 403);
+      return;
+    }
+    if (row.status === 3) {
+      successResponse(res, { id: postId }, "帖子已删除");
+      return;
+    }
+    await execute("UPDATE posts SET status = 3, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [postId]);
+    successResponse(res, { id: postId }, "帖子已删除");
+  } catch (error) {
+    const err = error as Error;
+    console.error("[posts] DELETE /api/posts/:postId 失败:", err.message, error);
+    successResponse(res, null, `帖子删除失败: ${err.message}`, 500, 500);
+  }
+}
+
 router.get("/", optionalAuth, listFeedHandler);
 router.post("/", requireAuth, createPostHandler);
 router.post("/publish", requireAuth, createPostHandler);
 router.get("/favorites", requireAuth, listMyFavoritePostsHandler);
 router.get("/mine", requireAuth, listMyPublishedPostsHandler);
+router.delete("/:postId", requireAuth, deleteMyPostHandler);
 router.get("/:postId/comments", listPostCommentsHandler);
 router.post("/:postId/comments", requireAuth, createPostCommentHandler);
 router.post("/:postId/like", requireAuth, togglePostLikeHandler);

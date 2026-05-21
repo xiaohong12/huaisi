@@ -123,6 +123,17 @@ BASE_URL=https://xxxx-xxxx-xxxx.trycloudflare.com
 - 图片地址是不是 `https://*.trycloudflare.com/image/...`
 - `cloudflared` 进程是否还在运行
 - 前端是否已重启并读取最新 `.env`
+- 报错域名是否与当前隧道一致（如日志是 `path-xxx` 但图片仍是 `poster-xxx`，说明用了旧隧道拼出的 URL）
+
+**快速修复清单：**
+
+1. 保持 `cloudflared tunnel --url http://localhost:7001`（或本机局域网 IP:7001）运行
+2. 把日志里的 `https://xxxx.trycloudflare.com` 同步到 `fontproject/.env` 的 `VITE_ASSET_BASE_URL` 与 `server/.env` 的 `BASE_URL`
+3. 重启 `server`、`fontproject`（`npm run dev`），微信开发者工具重新编译
+4. 开发者工具：清缓存 → 重新编译；必要时清除 `loginUser` 后重新登录
+5. 在浏览器直接打开：`https://当前隧道域名/image/test/某文件名.jpg`，能打开再测小程序
+
+前端 `request.ts` 已自动把旧的 `*.trycloudflare.com/image/...` 改写为当前 `VITE_ASSET_BASE_URL`，换隧道后一般无需改数据库。
 
 ### 问题 2：突然又不通了
 

@@ -15,9 +15,22 @@
           </view>
         </view>
         <u-line margin="0" color="#f1f5f9" />
-        <view class="cell">
-          <text class="cell-label">用户名</text>
-          <text class="cell-value-text">{{ displayUser.username }}</text>
+        <view class="cell cell--tap" @click="onNicknameClick">
+          <text class="cell-label">昵称</text>
+          <view class="cell-right">
+            <text class="cell-value-text">{{ displayUser.nickname }}</text>
+            <u-icon name="arrow-right" size="14" color="#94a3b8" />
+          </view>
+        </view>
+        <u-line margin="0" color="#f1f5f9" />
+        <view class="cell cell--tap" @click="onPhoneClick">
+          <text class="cell-label">手机号</text>
+          <view class="cell-right">
+            <text class="cell-value-text" :class="{ 'cell-value-text--muted': !displayUser.phone }">
+              {{ displayUser.phone || "未绑定" }}
+            </text>
+            <u-icon name="arrow-right" size="14" color="#94a3b8" />
+          </view>
         </view>
       </view>
     </view>
@@ -119,6 +132,41 @@
         <view class="sheet-safe" />
       </view>
     </u-popup>
+
+    <u-popup
+      :show="editSheetVisible"
+      mode="bottom"
+      round="20"
+      :close-on-click-overlay="true"
+      @close="closeEditSheet"
+    >
+      <view class="sheet">
+        <view class="sheet-header">
+          <text class="sheet-title">{{ editField === "phone" ? "修改手机号" : "修改昵称" }}</text>
+          <u-icon name="close" :size="20" color="#64748b" @click="closeEditSheet" />
+        </view>
+        <view class="sheet-panel">
+          <text class="sheet-label">{{ editField === "phone" ? "手机号码" : "昵称" }}</text>
+          <input
+            v-model.trim="editInput"
+            class="sheet-input"
+            :type="editField === 'phone' ? 'number' : 'text'"
+            :maxlength="editField === 'phone' ? 11 : 64"
+            :placeholder="editField === 'phone' ? '请输入 11 位手机号码' : '请输入昵称'"
+            placeholder-class="input-ph"
+          />
+          <u-button
+            type="primary"
+            text="保存"
+            shape="circle"
+            :loading="editSaveLoading"
+            :custom-style="primaryBtnStyle"
+            @click="onConfirmEditField"
+          />
+        </view>
+        <view class="sheet-safe" />
+      </view>
+    </u-popup>
   </view>
 </template>
 
@@ -127,7 +175,7 @@ import { computed, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { generateAvatarByAiApi } from "@/api/ai";
 import { uploadImageApi } from "@/api/common";
-import { updateUserProfileApi } from "@/api/userProfile";
+import { getUserProfileApi, updateUserProfileApi } from "@/api/userProfile";
 import { resolveAssetUrl } from "@/utils/request";
 
 /**
@@ -137,8 +185,11 @@ interface LoginUser {
   id?: number;
   username?: string;
   nickname?: string;
+  phone?: string;
   avatar?: string;
 }
+
+type EditField = "nickname" | "phone";
 
 const primaryBtnStyle =
   "width: 100%; height: 88rpx; font-size: 30rpx; font-weight: 600; color: #ffffff; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border: none;";
@@ -165,6 +216,10 @@ const pendingAvatarPath = ref("");
 /** 预览图地址：统一使用服务端返回的图片地址（本地 /image 路径或 http/https）。 */
 const previewImageSrc = ref("");
 const saveLoading = ref(false);
+const editSheetVisible = ref(false);
+const editField = ref<EditField>("nickname");
+const editInput = ref("");
+const editSaveLoading = ref(false);
 
 /**
  * 从本地缓存刷新用户信息，供展示与保存后同步。
@@ -175,6 +230,7 @@ const refreshLoginUser = () => {
 
 onShow(() => {
   refreshLoginUser();
+  refreshProfileFromServer();
 });
 
 /**
@@ -183,10 +239,38 @@ onShow(() => {
 const displayUser = computed(() => {
   const cacheUser = loginUserRef.value;
   return {
-    username: cacheUser?.nickname || cacheUser?.username || "未登录用户",
+    nickname: cacheUser?.nickname || cacheUser?.username || "未设置",
+    phone: (cacheUser?.phone || "").trim(),
     avatar: resolveAssetUrl(cacheUser?.avatar || ""),
   };
 });
+
+/**
+ * 已登录时从服务端拉取最新资料（含手机号），写回本地缓存。
+ */
+const refreshProfileFromServer = async () => {
+  if (!uni.getStorageSync("token")) return;
+  try {
+    const res = await getUserProfileApi();
+    const ok = res.code === 0 || res.code === 200;
+    if (!ok || !res.data?.user) return;
+    const u = res.data.user;
+    const prev = (uni.getStorageSync("loginUser") as Record<string, unknown>) || {};
+    uni.setStorageSync("loginUser", {
+      ...prev,
+      id: u.id,
+      username: u.username,
+      nickname: u.nickname,
+      phone: u.phone,
+      avatar: u.avatar,
+    });
+    refreshLoginUser();
+  } catch {
+    // 保留本地缓存展示
+  }
+};
+
+const isPhoneValid = (value: string) => /^1\d{10}$/.test(value);
 
 /**
  * 关闭底部弹层并恢复默认 Tab，避免下次打开仍停在 AI 页。
@@ -210,10 +294,14 @@ const clearPreview = () => {
 };
 
 /**
- * 将新头像写入数据库并合并进本地 loginUser 缓存。
+ * 将资料变更写入数据库并合并进本地 loginUser 缓存。
  */
-const applyAvatarPath = async (avatarPath: string, successMsg: string): Promise<boolean> => {
-  const save = await updateUserProfileApi({ avatar: avatarPath });
+const applyProfileUpdate = async (
+  payload: { avatar?: string; nickname?: string; phone?: string },
+  successMsg: string,
+  options?: { closeAvatarSheet?: boolean; closeEditSheet?: boolean }
+): Promise<boolean> => {
+  const save = await updateUserProfileApi(payload);
   const ok = save.code === 0 || save.code === 200;
   if (!ok || !save.data?.user) {
     uni.showToast({ title: save.message || "保存失败", icon: "none" });
@@ -223,8 +311,80 @@ const applyAvatarPath = async (avatarPath: string, successMsg: string): Promise<
   uni.setStorageSync("loginUser", { ...prev, ...save.data.user });
   refreshLoginUser();
   uni.showToast({ title: successMsg, icon: "success" });
-  closeSheet();
+  if (options?.closeAvatarSheet) closeSheet();
+  if (options?.closeEditSheet) closeEditSheet();
   return true;
+};
+
+/**
+ * 关闭昵称/手机号编辑弹层。
+ */
+const closeEditSheet = () => {
+  editSheetVisible.value = false;
+  editInput.value = "";
+};
+
+const requireLogin = (): boolean => {
+  if (!uni.getStorageSync("token")) {
+    uni.showToast({ title: "请先登录", icon: "none" });
+    return false;
+  }
+  return true;
+};
+
+/**
+ * 点击昵称行，打开编辑弹层。
+ */
+const onNicknameClick = () => {
+  if (!requireLogin()) return;
+  editField.value = "nickname";
+  editInput.value = loginUserRef.value?.nickname || loginUserRef.value?.username || "";
+  editSheetVisible.value = true;
+};
+
+/**
+ * 点击手机号行，打开编辑弹层。
+ */
+const onPhoneClick = () => {
+  if (!requireLogin()) return;
+  editField.value = "phone";
+  editInput.value = (loginUserRef.value?.phone || "").trim();
+  editSheetVisible.value = true;
+};
+
+/**
+ * 保存昵称或手机号修改。
+ */
+const onConfirmEditField = async () => {
+  if (editSaveLoading.value) return;
+  const value = editInput.value.trim();
+  if (editField.value === "nickname") {
+    if (!value) {
+      uni.showToast({ title: "请输入昵称", icon: "none" });
+      return;
+    }
+    if (value.length > 64) {
+      uni.showToast({ title: "昵称不能超过 64 字", icon: "none" });
+      return;
+    }
+    editSaveLoading.value = true;
+    try {
+      await applyProfileUpdate({ nickname: value }, "昵称已更新", { closeEditSheet: true });
+    } finally {
+      editSaveLoading.value = false;
+    }
+    return;
+  }
+  if (!isPhoneValid(value)) {
+    uni.showToast({ title: "请输入 11 位有效手机号", icon: "none" });
+    return;
+  }
+  editSaveLoading.value = true;
+  try {
+    await applyProfileUpdate({ phone: value }, "手机号已更新", { closeEditSheet: true });
+  } finally {
+    editSaveLoading.value = false;
+  }
 };
 
 /**
@@ -310,7 +470,9 @@ const onConfirmSaveAvatar = async () => {
   if (saveLoading.value || !pendingAvatarPath.value) return;
   saveLoading.value = true;
   try {
-    await applyAvatarPath(pendingAvatarPath.value, "头像已更新");
+    await applyProfileUpdate({ avatar: pendingAvatarPath.value }, "头像已更新", {
+      closeAvatarSheet: true,
+    });
   } finally {
     saveLoading.value = false;
   }
@@ -393,6 +555,7 @@ const onConfirmSaveAvatar = async () => {
   align-items: center;
   gap: 10rpx;
   min-width: 0;
+  max-width: 120px;
 }
 
 .cell-hint {
@@ -401,7 +564,8 @@ const onConfirmSaveAvatar = async () => {
 }
 
 .cell-value-text {
-  max-width: 62%;
+  flex: 1;
+  min-width: 0;
   font-size: 28rpx;
   font-weight: 600;
   color: #0f172a;
@@ -409,6 +573,24 @@ const onConfirmSaveAvatar = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cell-value-text--muted {
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.sheet-input {
+  width: 100%;
+  height: 88rpx;
+  padding: 0 22rpx;
+  margin-bottom: 24rpx;
+  box-sizing: border-box;
+  font-size: 28rpx;
+  color: #0f172a;
+  background: #f8fafc;
+  border-radius: 16rpx;
+  border: 1rpx solid #e2e8f0;
 }
 
 .sheet {

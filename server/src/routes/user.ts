@@ -20,8 +20,16 @@ interface UserProfileRow extends RowDataPacket {
   id: number;
   username: string;
   nickname: string;
+  phone: string | null;
   avatar: string;
   gender: "male" | "female" | "unknown";
+}
+
+/**
+ * 手机号格式校验：非空时必须为大陆 11 位号码（1 开头）。
+ */
+function isValidMainlandPhone(phone: string): boolean {
+  return /^1\d{10}$/.test(phone);
 }
 
 /** 地址表行（与 user_addresses 一致） */
@@ -288,7 +296,7 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
       return;
     }
     const row = await queryOne<UserProfileRow>(
-      `SELECT id, username, nickname, avatar, gender FROM users WHERE id = ? LIMIT 1`,
+      `SELECT id, username, nickname, phone, avatar, gender FROM users WHERE id = ? LIMIT 1`,
       [userId]
     );
     if (!row) {
@@ -303,6 +311,7 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
           id: row.id,
           username: row.username,
           nickname: row.nickname,
+          phone: row.phone ?? "",
           avatar: avatarDisplay,
           gender: row.gender,
         },
@@ -317,7 +326,7 @@ router.get("/profile", requireAuth, async (req: Request, res: Response) => {
 
 /**
  * PUT /api/user/profile
- * 已登录用户更新个人资料（当前支持头像 avatar）；成功后返回最新用户摘要供前端刷新本地缓存。
+ * 已登录用户更新个人资料（支持 avatar、nickname、phone，至少传一项）；成功后返回最新用户摘要供前端刷新本地缓存。
  */
 router.put("/profile", requireAuth, async (req: Request, res: Response) => {
   try {
@@ -327,19 +336,76 @@ router.put("/profile", requireAuth, async (req: Request, res: Response) => {
       return;
     }
     const body = req.body as Record<string, unknown>;
-    const avatar = typeof body.avatar === "string" ? body.avatar.trim() : "";
-    if (!avatar) {
-      errorResponse(res, "请提供头像地址", 400);
-      return;
-    }
-    if (avatar.length > 2048) {
-      errorResponse(res, "头像地址过长", 400);
+    const hasAvatar = typeof body.avatar === "string";
+    const hasNickname = typeof body.nickname === "string";
+    const hasPhone = typeof body.phone === "string";
+    if (!hasAvatar && !hasNickname && !hasPhone) {
+      errorResponse(res, "请至少提供一项要更新的资料", 400);
       return;
     }
 
-    await execute(`UPDATE users SET avatar = ? WHERE id = ?`, [avatar, userId]);
+    const sets: string[] = [];
+    const params: unknown[] = [];
+
+    if (hasAvatar) {
+      const avatar = (body.avatar as string).trim();
+      if (!avatar) {
+        errorResponse(res, "头像地址不能为空", 400);
+        return;
+      }
+      if (avatar.length > 2048) {
+        errorResponse(res, "头像地址过长", 400);
+        return;
+      }
+      sets.push("avatar = ?");
+      params.push(avatar);
+    }
+
+    if (hasNickname) {
+      const nickname = (body.nickname as string).trim();
+      if (!nickname) {
+        errorResponse(res, "昵称不能为空", 400);
+        return;
+      }
+      if (nickname.length > 64) {
+        errorResponse(res, "昵称不能超过 64 个字符", 400);
+        return;
+      }
+      sets.push("nickname = ?");
+      params.push(nickname);
+    }
+
+    if (hasPhone) {
+      const phone = (body.phone as string).trim();
+      if (!phone) {
+        errorResponse(res, "手机号不能为空", 400);
+        return;
+      }
+      if (phone.length > 20) {
+        errorResponse(res, "手机号长度不能超过 20 个字符", 400);
+        return;
+      }
+      if (!isValidMainlandPhone(phone)) {
+        errorResponse(res, "手机号格式不正确，请输入 11 位大陆手机号", 400);
+        return;
+      }
+      const dupPhone = await queryOne<RowDataPacket>(
+        "SELECT id FROM users WHERE phone = ? AND id <> ? LIMIT 1",
+        [phone, userId]
+      );
+      if (dupPhone) {
+        errorResponse(res, "该手机号已被其他账号使用", 400);
+        return;
+      }
+      sets.push("phone = ?");
+      params.push(phone);
+    }
+
+    params.push(userId);
+    await execute(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`, params);
+
     const row = await queryOne<UserProfileRow>(
-      `SELECT id, username, nickname, avatar, gender FROM users WHERE id = ? LIMIT 1`,
+      `SELECT id, username, nickname, phone, avatar, gender FROM users WHERE id = ? LIMIT 1`,
       [userId]
     );
     if (!row) {
@@ -355,6 +421,7 @@ router.put("/profile", requireAuth, async (req: Request, res: Response) => {
           id: row.id,
           username: row.username,
           nickname: row.nickname,
+          phone: row.phone ?? "",
           avatar: avatarDisplay,
           gender: row.gender,
         },

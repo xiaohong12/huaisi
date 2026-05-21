@@ -72,8 +72,8 @@
 import { ref } from "vue";
 import { loginApi } from "@/api/common";
 
-const phone = ref("15575200306");
-const password = ref("Aa123456");
+const phone = ref("");
+const password = ref("");
 const agreed = ref(false);
 const phoneFocused = ref(false);
 const passwordFocused = ref(false);

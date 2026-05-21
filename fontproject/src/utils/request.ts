@@ -45,13 +45,24 @@ const isPrivateHost = (hostname: string): boolean => {
   return false;
 };
 
+/** 是否为 cloudflared Quick Tunnel 临时域名（重启后子域名会变，需按当前 VITE_ASSET_BASE_URL 改写）。 */
+const isTryCloudflareHost = (hostname: string): boolean =>
+  hostname.endsWith(".trycloudflare.com");
+
 /**
- * 将局域网图片绝对地址改写为穿透域名地址，仅处理 /image/... 路径，避免误改业务接口 URL。
+ * 将过期的图片绝对地址改写为当前穿透域名：
+ * - 局域网 http(s) + /image/... → 当前 VITE_ASSET_BASE_URL
+ * - 任意 *.trycloudflare.com + /image/... → 当前 VITE_ASSET_BASE_URL（避免旧隧道子域 ERR_CONNECTION_CLOSED）
+ * 非 /image/ 路径或第三方 CDN 外链保持原样。
  */
-const rewritePrivateImageUrl = (raw: string): string => {
+const rewriteStaleAbsoluteImageUrl = (raw: string): string => {
   try {
     const parsed = new URL(raw);
-    if (!isPrivateHost(parsed.hostname) || !parsed.pathname.startsWith("/image/")) {
+    if (!parsed.pathname.startsWith("/image/")) {
+      return raw;
+    }
+    const host = parsed.hostname;
+    if (!isPrivateHost(host) && !isTryCloudflareHost(host)) {
       return raw;
     }
     return `${getAssetBaseUrl()}${parsed.pathname}${parsed.search || ""}`;
@@ -67,7 +78,7 @@ const rewritePrivateImageUrl = (raw: string): string => {
 export const resolveAssetUrl = (pathOrUrl: string): string => {
   if (!pathOrUrl) return "";
   if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
-    return rewritePrivateImageUrl(pathOrUrl);
+    return rewriteStaleAbsoluteImageUrl(pathOrUrl);
   }
   if (/^data:image\//i.test(pathOrUrl)) return pathOrUrl;
   if (pathOrUrl.startsWith("blob:") || pathOrUrl.startsWith("wxfile://")) return pathOrUrl;
@@ -84,7 +95,7 @@ export const resolveAssetUrl = (pathOrUrl: string): string => {
 const normalizeImageAssetString = (raw: string): string => {
   if (!raw) return raw;
   const isImageFileRef = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(raw);
-  if (raw.startsWith("http://") || raw.startsWith("https://")) return rewritePrivateImageUrl(raw);
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return rewriteStaleAbsoluteImageUrl(raw);
   if (/^data:image\//i.test(raw)) return raw;
   if (raw.startsWith("blob:") || raw.startsWith("wxfile://")) return raw;
   if (raw.startsWith("/image/")) return `${getAssetBaseUrl()}${raw}`;
